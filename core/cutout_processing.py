@@ -6,6 +6,7 @@ import pandas as pd
 from pathlib import Path
 import yaml
 
+
 def get_wind_profile(lat: float, lon: float, cutout_path: Path, turbine_model: str):
     """
     Calculate the wind generation profile for a given location and turbine model.
@@ -28,22 +29,45 @@ def get_wind_profile(lat: float, lon: float, cutout_path: Path, turbine_model: s
     lon_slice = slice(lon - 1.0, lon + 1.0)
     sliced_cutout = cutout.sel(y=lat_slice, x=lon_slice)
 
-    mask = xr.DataArray(np.zeros_like(cutout.data['height']), coords=cutout.data["height"].coords, dims=cutout.data["height"].dims)
-    nearest_y = sliced_cutout.data['y'].sel(y=lat, method='nearest')
-    nearest_x = sliced_cutout.data['x'].sel(x=lon, method='nearest')
+    mask = xr.DataArray(
+        np.zeros_like(cutout.data["height"]),
+        coords=cutout.data["height"].coords,
+        dims=cutout.data["height"].dims,
+    )
+    nearest_y = sliced_cutout.data["y"].sel(y=lat, method="nearest")
+    nearest_x = sliced_cutout.data["x"].sel(x=lon, method="nearest")
     mask.loc[dict(x=nearest_x, y=nearest_y)] = 1
 
     print(f"Calculating wind resource for turbine {turbine_model}")
-    wind_profile: pd.DataFrame = sliced_cutout.wind(turbine=turbine_model, layout=mask, per_unit=True, capacity_factor_timeseries=True, show_progress=True, add_cutout_windspeed=True)
-    wind_profile_df: pd.DataFrame = wind_profile.squeeze().to_dataframe(name="wind_generation")
-    
+    wind_profile: pd.DataFrame = sliced_cutout.wind(
+        turbine=turbine_model,
+        layout=mask,
+        per_unit=True,
+        capacity_factor_timeseries=True,
+        show_progress=True,
+        add_cutout_windspeed=True,
+    )
+    wind_profile_df: pd.DataFrame = wind_profile.squeeze().to_dataframe(
+        name="wind_generation"
+    )
+
     # Check for leap day and remove it
     if len(wind_profile_df) == 8784:
-        wind_profile_df = wind_profile_df[~((wind_profile_df.index.month == 2) & (wind_profile_df.index.day == 29))]
-    
+        wind_profile_df = wind_profile_df[
+            ~((wind_profile_df.index.month == 2) & (wind_profile_df.index.day == 29))
+        ]
+
     return wind_profile_df["wind_generation"]
 
-def get_solar_profile(lat: float, lon: float, slope: float = 30, azimuth: float = 180, cutout_path: Path = Path("data/europe-2023-era5.nc"), panel_model: str = "CSi") -> pd.Series:
+
+def get_solar_profile(
+    lat: float,
+    lon: float,
+    slope: float = 30,
+    azimuth: float = 180,
+    cutout_path: Path = Path("data/europe-2023-era5.nc"),
+    panel_model: str = "CSi",
+) -> pd.Series:
     """
     Generate a solar generation profile for a given location and panel orientation.
     Parameters:
@@ -62,37 +86,60 @@ def get_solar_profile(lat: float, lon: float, slope: float = 30, azimuth: float 
     - If the resulting time series includes a leap day, it is removed.
     """
 
-
-    cutout = atlite.Cutout(cutout_path) #from RVO energiemix
+    cutout = atlite.Cutout(cutout_path)  # from RVO energiemix
     lat_slice = slice(lat - 0.5, lat + 0.5)
     lon_slice = slice(lon - 0.5, lon + 0.5)
     sliced_cutout = cutout.sel(y=lat_slice, x=lon_slice)
 
-    mask = xr.DataArray(np.zeros_like(cutout.data['height']), coords=cutout.data["height"].coords, dims=cutout.data["height"].dims)
-    nearest_y = sliced_cutout.data['y'].sel(y=lat, method='nearest')
-    nearest_x = sliced_cutout.data['x'].sel(x=lon, method='nearest')
+    mask = xr.DataArray(
+        np.zeros_like(cutout.data["height"]),
+        coords=cutout.data["height"].coords,
+        dims=cutout.data["height"].dims,
+    )
+    nearest_y = sliced_cutout.data["y"].sel(y=lat, method="nearest")
+    nearest_x = sliced_cutout.data["x"].sel(x=lon, method="nearest")
     mask.loc[dict(x=nearest_x, y=nearest_y)] = 1
 
     orientation = dict(slope=slope, azimuth=azimuth)
-    solar_profile = sliced_cutout.pv(panel=panel_model, orientation=orientation, layout=mask, per_unit=True, capacity_factor_timeseries=True, show_progress=True)
+    solar_profile = sliced_cutout.pv(
+        panel=panel_model,
+        orientation=orientation,
+        layout=mask,
+        per_unit=True,
+        capacity_factor_timeseries=True,
+        show_progress=True,
+    )
     solar_profile_df = solar_profile.squeeze().to_dataframe(name="solar_generation")
-    
+
     # Check for leap day and remove it
     if len(solar_profile_df) == 8784:
-        solar_profile_df = solar_profile_df[~((solar_profile_df.index.month == 2) & (solar_profile_df.index.day == 29))]
-    
+        solar_profile_df = solar_profile_df[
+            ~((solar_profile_df.index.month == 2) & (solar_profile_df.index.day == 29))
+        ]
+
     return solar_profile_df["solar_generation"]
 
-def print_available_turbine_list():
+
+def get_available_turbine_list():
     """
-    Print a list of pre-configured turbine models.
+    Get a list of pre-configured turbine models including custom turbines.
     """
     windturbines = atlite.resource.windturbines
-    print(f"The available wind turbines are: ")
-    print(list(windturbines.keys()))
+    available_turbines = list(windturbines.keys())
+
+    # Add custom turbines from custom_turbines folder
+    custom_turbines_dir = Path("custom_turbines")
+    if custom_turbines_dir.exists():
+        for yaml_file in custom_turbines_dir.glob("*.yaml"):
+            # Remove .yaml extension to get turbine name
+            turbine_name = yaml_file.stem
+            available_turbines.append(turbine_name)
+
+    return available_turbines
+
 
 def get_turbine_data(turbine_model: str):
-    """ Print the data for a specific turbine model.
+    """Print the data for a specific turbine model.
     Parameters:
 
     turbine_model (str): The name of the turbine model.
