@@ -17,6 +17,6 @@ RUN uv sync --frozen --group dev \
 
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 
-EXPOSE 8080
+EXPOSE 8085
 
 CMD ["/app/deploy/start.sh"]

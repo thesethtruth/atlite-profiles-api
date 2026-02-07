@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     image: renewables-profiles:latest
     ports:
-      - "8080:8080"
+      - "8085:8085"
     volumes:
       - ./data:/app/data
       - ./output:/app/output

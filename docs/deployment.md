@@ -12,7 +12,7 @@ docker compose up --build
 
 - `app`: single container that runs both:
 - FastAPI on internal `:8000`
-- Caddy on exposed `:8080`
+- Caddy on exposed `:8085`
 
 Mounted volumes:
 
@@ -23,7 +23,7 @@ Mounted volumes:
 
 ```bash
 docker build -t renewables-profiles .
-docker run --rm -p 8080:8080 \
+docker run --rm -p 8085:8085 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/output:/app/output" \
   renewables-profiles
@@ -31,12 +31,12 @@ docker run --rm -p 8080:8080 \
 
 ## Routes
 
-- API: `http://localhost:8080/api/*` (prefix `/api` is stripped before forwarding to FastAPI)
-- Docs: `http://localhost:8080/docs` (prefix `/docs` is stripped before serving static site files)
+- API: `http://localhost:8085/api/*` (prefix `/api` is stripped before forwarding to FastAPI)
+- Docs: `http://localhost:8085/docs` (prefix `/docs` is stripped before serving static site files)
 
 Examples:
 
 ```bash
-curl http://localhost:8080/api/health
-open http://localhost:8080/docs
+curl http://localhost:8085/api/health
+open http://localhost:8085/docs
 ```

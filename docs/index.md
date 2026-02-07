@@ -17,8 +17,8 @@ uv run profiles-api
 docker compose up --build
 ```
 
-- API under Caddy: `http://localhost:8080/api/*`
-- Docs under Caddy: `http://localhost:8080/docs`
+- API under Caddy: `http://localhost:8085/api/*`
+- Docs under Caddy: `http://localhost:8085/docs`
 
 ## Project Areas
 
