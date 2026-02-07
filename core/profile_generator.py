@@ -184,7 +184,9 @@ class SolarConfig(BaseModel):
     def _normalize_custom_panel_payload(
         self, payload: dict[str, Any]
     ) -> dict[str, object]:
-        config = SolarTechnologyConfig.from_payload(payload, default_name=self.panel_model)
+        config = SolarTechnologyConfig.from_payload(
+            payload, default_name=self.panel_model
+        )
         return config.to_atlite_panel()
 
 
@@ -235,7 +237,9 @@ class ProfileGenerator:
                     filepath, index_col=0, parse_dates=True
                 ).squeeze()
                 profiles[profile_key] = wind_profile
-                logger.info("Wind full load hours for %s: %s", cutout_year, wind_profile.sum())
+                logger.info(
+                    "Wind full load hours for %s: %s", cutout_year, wind_profile.sum()
+                )
             else:
                 logger.info(
                     "Generating wind profile for %s using %s",
@@ -252,7 +256,9 @@ class ProfileGenerator:
 
                 profiles[profile_key] = wind_profile
 
-                logger.info("Wind full load hours for %s: %s", cutout_year, wind_profile.sum())
+                logger.info(
+                    "Wind full load hours for %s: %s", cutout_year, wind_profile.sum()
+                )
 
                 # Save profile to file
                 wind_profile.to_csv(filepath)
@@ -357,7 +363,9 @@ class ProfileGenerator:
             self._load_solar_profiles_from_files()
 
             if not self.solar_profiles:
-                logger.warning("No solar profiles to visualize. Generate profiles first.")
+                logger.warning(
+                    "No solar profiles to visualize. Generate profiles first."
+                )
                 return
 
         # Create a DataFrame for monthly aggregation

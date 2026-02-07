@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+
 class ProfileType(str, Enum):
     wind = "wind"
     solar = "solar"
@@ -26,7 +27,9 @@ class WindTurbineConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_curve_lengths(self) -> "WindTurbineConfig":
         if len(self.wind_speeds) != len(self.power_curve_mw):
-            raise ValueError("wind_speeds and power_curve_mw must have the same length.")
+            raise ValueError(
+                "wind_speeds and power_curve_mw must have the same length."
+            )
         return self
 
     def to_atlite_turbine(self) -> dict[str, object]:
@@ -102,7 +105,9 @@ class GenerateProfilesRequest(BaseModel):
     longitude: float = Field(default=5.4186, ge=-180, le=180)
     base_path: Path = Path("data")
     output_dir: Path = Path("output")
-    cutouts: list[str] = Field(default_factory=lambda: ["europe-2024-era5.nc"], min_length=1)
+    cutouts: list[str] = Field(
+        default_factory=lambda: ["europe-2024-era5.nc"], min_length=1
+    )
     turbine_model: str = "NREL_ReferenceTurbine_2020ATB_4MW"
     turbine_config: WindTurbineConfig | None = None
     slopes: list[float] = Field(default_factory=lambda: [30.0], min_length=1)

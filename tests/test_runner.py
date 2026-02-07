@@ -232,11 +232,7 @@ def test_inspect_turbine_infers_power_unit_once_for_full_curve(tmp_path, monkeyp
     custom_dir = tmp_path / "config/wind"
     custom_dir.mkdir(parents=True)
     (custom_dir / "MixedUnits.yaml").write_text(
-        (
-            "HUB_HEIGHT: 100\n"
-            "V: [0, 10, 20]\n"
-            "POW: [0, 50, 5600]\n"
-        ),
+        ("HUB_HEIGHT: 100\nV: [0, 10, 20]\nPOW: [0, 50, 5600]\n"),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)

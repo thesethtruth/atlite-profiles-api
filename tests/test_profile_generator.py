@@ -10,11 +10,7 @@ def test_wind_config_uses_custom_turbine_atlite_yaml(tmp_path, monkeypatch):
     custom_dir = tmp_path / "config/wind"
     custom_dir.mkdir(parents=True)
     (custom_dir / "MyCustom.yaml").write_text(
-        (
-            "HUB_HEIGHT: 145\n"
-            "V: [0, 10, 20]\n"
-            "POW: [0, 2, 4]\n"
-        ),
+        ("HUB_HEIGHT: 145\nV: [0, 10, 20]\nPOW: [0, 2, 4]\n"),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
@@ -78,13 +74,7 @@ def test_solar_config_uses_custom_panel_wrapper_yaml(tmp_path, monkeypatch):
     custom_dir = tmp_path / "config/solar"
     custom_dir.mkdir(parents=True)
     (custom_dir / "MyPanel.yaml").write_text(
-        (
-            "name: MyPanel\n"
-            "manufacturer: ACME\n"
-            "panel_parameters:\n"
-            "  A: 1.0\n"
-            "  B: 2.0\n"
-        ),
+        ("name: MyPanel\nmanufacturer: ACME\npanel_parameters:\n  A: 1.0\n  B: 2.0\n"),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
@@ -106,11 +96,7 @@ def test_solar_config_uses_custom_panel_raw_yaml(tmp_path, monkeypatch):
     custom_dir = tmp_path / "config/solar"
     custom_dir.mkdir(parents=True)
     (custom_dir / "RawPanel.yaml").write_text(
-        (
-            "name: RawPanel\n"
-            "A: 1.5\n"
-            "B: 3.5\n"
-        ),
+        ("name: RawPanel\nA: 1.5\nB: 3.5\n"),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)

@@ -154,9 +154,7 @@ def _to_curve_points(payload: dict[str, object]) -> list[dict[str, float]]:
         power_value = _to_float(power)
         if speed_value is None or power_value is None:
             continue
-        points.append(
-            {"speed": speed_value, "power_mw": power_value * power_scale}
-        )
+        points.append({"speed": speed_value, "power_mw": power_value * power_scale})
 
     return points
 
