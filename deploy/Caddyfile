@@ -1,0 +1,17 @@
+:8080 {
+    encode zstd gzip
+
+    handle_path /api/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    handle_path /docs* {
+        root * /app/site
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+
+    handle {
+        respond "Not found. Use /api/* or /docs" 404
+    }
+}

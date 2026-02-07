@@ -9,3 +9,4 @@ nav:
   - Home: index.md
   - CLI: cli.md
   - API: api.md
+  - Deployment: deployment.md

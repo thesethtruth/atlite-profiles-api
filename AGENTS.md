@@ -13,6 +13,7 @@
 - `pyproject.toml` and `uv.lock`: Dependency and environment lock files.
 
 Keep domain logic in `core/`; keep `main.py` as a thin configuration and execution script.
+Keep business/runtime behavior shared through `service/runner.py` so CLI and API expose the same features without duplicate implementations.
 
 ## Build, Test, and Development Commands
 - `uv sync`: Create/update the virtual environment and install pinned dependencies.
@@ -37,6 +38,6 @@ If formatting/linting tools are introduced later, add them to `pyproject.toml` a
 - Run `uv run pytest` before handing off work.
 
 ## Documentation & Workflow Rules
-- Always update `README.md` when behavior, commands, or interfaces change.
-- If README becomes too long, move detailed content into `/docs` and keep README as a concise index linking to those pages.
+- Keep `README.md` concise (quick start + pointers). Put detailed behavior, options, and examples in `/docs` and link from README.
+- When behavior, commands, or interfaces change: update `/docs` first, then update README only if navigation/quick-start pointers changed.
 - Do not open PRs or make commits from the agent workflow; make changes directly in this repository working tree only.

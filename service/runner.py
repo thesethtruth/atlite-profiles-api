@@ -70,7 +70,7 @@ def _display_definition_file(
     *, source_kind: str, source_file: Path, turbine_model: str
 ) -> str:
     if source_kind == "atlite":
-        return f"atlite/resources/windturbine/{turbine_model}"
+        return f"atlite/{turbine_model}"
     try:
         return str(source_file.relative_to(Path.cwd()))
     except ValueError:

@@ -11,6 +11,15 @@ uv run profiles-cli --help
 uv run profiles-api
 ```
 
+## Docker Quick Start
+
+```bash
+docker compose up --build
+```
+
+- API under Caddy: `http://localhost:8080/api/*`
+- Docs under Caddy: `http://localhost:8080/docs`
+
 ## Project Areas
 
 - `core/`: generation and cutout processing logic

@@ -7,12 +7,11 @@ A wrapper around [atlite](https://github.com/PyPSA/atlite) which exposes a CLI a
 - Wind and solar profile generation from ERA5 NetCDF cutouts
 - Typer CLI for local runs and turbine discovery
 - Turbine inspection via `profiles-cli inspect-turbine`
-  - Shows relative definition paths (`custom_turbines/...`) and atlite-style references (`atlite/resources/windturbine/<type>`)
-  - Renders source documents as clickable links with a 40-character display label
 - FastAPI service for API-based execution
 - Optional inline API `turbine_config` for custom wind curves
 - Support for local custom turbine YAMLs in `custom_turbines/`
 - Automated `pytest` suite for runner, CLI, and API behavior
+- Docker deployment with Caddy routing `/api` and `/docs`
 
 ## Project Layout
 
@@ -31,11 +30,18 @@ uv run profiles-cli --help
 uv run profiles-api
 ```
 
+## Docker Quick Start
+
+```bash
+docker compose up --build
+```
+
 ## Documentation
 
 - Overview: `docs/index.md`
 - CLI reference: `docs/cli.md`
 - API reference: `docs/api.md`
+- Deployment: `docs/deployment.md`
 
 Use the docs as the source of truth for command options, examples, and endpoint details.
 For inline custom turbines in API requests, see `docs/api.md` (`turbine_config` on `POST /generate`).

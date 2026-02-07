@@ -148,7 +148,7 @@ def test_source_document_text_trims_and_links():
 
     text = cli._source_document_text(long_source)
 
-    assert text.plain == long_source[:40]
+    assert text.plain == long_source[:40] + "..."
     assert len(text.spans) == 1
     assert long_source in text.spans[0].style
 

@@ -122,7 +122,80 @@ def _atlite_turbine_files() -> dict[str, Path]:
 
 def _render_power_curve_chart(
     curve: list[dict[str, float]], *, width: int = 46, height: int = 14
-) -> str:
+) -> Text | str:
+    if not curve:
+        return "No power curve points found."
+
+    points = sorted(curve, key=lambda point: point["speed"])
+    x_values = [point["speed"] for point in points]
+    y_values = [point["power_mw"] for point in points]
+
+    try:
+        import plotext as plt
+    except Exception:
+        return _render_power_curve_chart_ascii(curve, width=width, height=height)
+
+    try:
+        x_min, x_max = min(x_values), max(x_values)
+        y_min, y_max = min(y_values), max(y_values)
+        x_span = x_max - x_min if x_max > x_min else 1.0
+        y_span = y_max - y_min if y_max > y_min else 1.0
+        x_pad = max(0.2, x_span * 0.04)
+        y_pad = max(0.05, y_span * 0.08)
+
+        plt.clear_figure()
+        plt.theme("clear")
+        plt.canvas_color("default")
+        plt.axes_color("default")
+        plt.ticks_color("white")
+        plt.plotsize(max(36, width), max(12, height))
+        plt.frame(False)
+        plt.xaxes(lower=True, upper=False)
+        plt.yaxes(left=True, right=False)
+        plt.grid(horizontal=False, vertical=False)
+        plt.xfrequency(6)
+        plt.yfrequency(5)
+        plt.xlim(0, x_max + x_pad)
+        plt.ylim(max(0.0, y_min - y_pad), y_max + y_pad)
+        plt.plot(x_values, y_values, marker="dot", color="cyan", style="bold")
+        plt.scatter(x_values, y_values, marker="x", color="red")
+        rendered = plt.build()
+        chart = Text()
+        chart.append("Power (MW)\n", style="bold green")
+        chart.append(Text.from_ansi(rendered))
+        chart.append("\n\t\t\t\tWind Speed (m/s)\n", style="bold green")
+
+        return chart
+    except Exception:
+        return _render_power_curve_chart_ascii(curve, width=width, height=height)
+    finally:
+        try:
+            plt.clear_figure()
+        except Exception:
+            pass
+
+
+def _with_vertical_y_label(rendered_plot: str, label: str) -> str:
+    lines = rendered_plot.splitlines()
+    if not lines or not label:
+        return rendered_plot
+
+    prefixes = [" "] * len(lines)
+    start = max(0, (len(lines) - len(label)) // 2)
+    for idx, char in enumerate(label):
+        target = start + idx
+        if target >= len(prefixes):
+            break
+        prefixes[target] = char
+
+    return "\n".join(
+        f"{prefixes[line_idx]} {line}" for line_idx, line in enumerate(lines)
+    )
+
+
+def _render_power_curve_chart_ascii(
+    curve: list[dict[str, float]], *, width: int = 46, height: int = 14
+) -> Text | str:
     if not curve:
         return "No power curve points found."
 
@@ -167,8 +240,9 @@ def _source_document_text(value: object) -> Text:
     source = str(value)
     if len(source) == 0:
         return Text("-")
-    if len(source) >= 40:
-        label = source[:40] + "..."
+    label = source[:40]
+    if len(source) > 40:
+        label += "..."
     text = Text(label)
     if source.startswith(("http://", "https://")):
         text.stylize(f"link {source}", 0, len(label))
@@ -342,6 +416,7 @@ def inspect_turbine_command(
         border_style="green",
         expand=True,
     )
+    console.print("\n")
     console.print(
         Columns(
             [left_card, right_card],
