@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import logging
+import yaml
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Union, Literal
+from typing import List, Dict, Optional, Union, Literal, Any
 
 from .cutout_processing import (
     get_wind_profile,
@@ -85,7 +86,54 @@ class WindConfig(BaseModel):
     def atlite_turbine(self) -> str | dict[str, object]:
         if self.turbine_config is not None:
             return self.turbine_config.to_atlite_turbine()
+        custom_payload = self._custom_turbine_payload()
+        if custom_payload is not None:
+            return custom_payload
         return self.turbine_model
+
+    def _custom_turbine_payload(self) -> dict[str, object] | None:
+        custom_file = Path("custom_turbines") / f"{self.turbine_model}.yaml"
+        if not custom_file.exists():
+            return None
+        with custom_file.open(encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle)
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"Invalid custom turbine definition for '{self.turbine_model}': expected object YAML."
+            )
+        return self._normalize_custom_turbine_payload(raw)
+
+    def _normalize_custom_turbine_payload(
+        self, payload: dict[str, Any]
+    ) -> dict[str, object]:
+        # Already in atlite YAML shape.
+        if "HUB_HEIGHT" in payload and "V" in payload and "POW" in payload:
+            normalized = dict(payload)
+            normalized.setdefault("name", self.turbine_model)
+            return normalized
+
+        # Support API/CLI schema style persisted to custom_turbines.
+        if {
+            "hub_height_m",
+            "wind_speeds",
+            "power_curve_mw",
+        }.issubset(payload.keys()):
+            config = WindTurbineConfig.model_validate(
+                {
+                    "name": payload.get("name", self.turbine_model),
+                    "hub_height_m": payload["hub_height_m"],
+                    "wind_speeds": payload["wind_speeds"],
+                    "power_curve_mw": payload["power_curve_mw"],
+                    "rated_power_mw": payload.get("rated_power_mw"),
+                    "manufacturer": payload.get("manufacturer"),
+                    "source": payload.get("source"),
+                }
+            )
+            return config.to_atlite_turbine()
+
+        raise ValueError(
+            f"Invalid custom turbine definition for '{self.turbine_model}': missing required turbine fields."
+        )
 
 
 class SolarConfig(BaseModel):
