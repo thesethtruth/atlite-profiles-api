@@ -13,8 +13,7 @@ Default bind is `0.0.0.0:8000`.
 ## Endpoints
 
 - `GET /health`
-- `GET /turbines
-- `GET /turbines?force_update=true` to refresh cache from source
+- `GET /turbines`
 - `POST /generate`
 
 ### Example Request

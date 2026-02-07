@@ -95,9 +95,12 @@ uv run profiles-cli generate --profile-type both --base-path data --output-dir o
 List available turbines:
 ```bash
 uv run profiles-cli list-turbines
-uv run profiles-cli list-turbines --force-update
+uv run profiles-cli list-turbines --sort name
+uv run profiles-cli list-turbines --sort hub_height
+uv run profiles-cli list-turbines --sort power
 ```
-The CLI prints separate atlite and custom turbine tables with source labels and spacing between sections for readability.
+The CLI prints separate atlite and custom turbine tables with source labels, rated power (MW), hub height (m), and spacing between sections for readability. Use `--sort` with `name`, `hub_height`, or `power` to control table ordering.
+Default sort is `power` (highest to lowest). `hub_height` is also highest to lowest; `name` is alphabetical (A to Z).
 
 ### FastAPI Service
 

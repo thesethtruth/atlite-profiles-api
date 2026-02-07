@@ -14,28 +14,12 @@ def test_health_endpoint():
 
 
 def test_turbines_endpoint(monkeypatch):
-    monkeypatch.setattr(api, "get_available_turbines", lambda force_update=False: ["X", "Y"])
+    monkeypatch.setattr(api, "get_available_turbines", lambda: ["X", "Y"])
 
     response = client.get("/turbines")
 
     assert response.status_code == 200
     assert response.json() == {"items": ["X", "Y"]}
-
-
-def test_turbines_endpoint_force_update(monkeypatch):
-    called = {"value": False}
-
-    def fake_get_available_turbines(force_update=False):
-        called["value"] = force_update
-        return ["X"]
-
-    monkeypatch.setattr(api, "get_available_turbines", fake_get_available_turbines)
-
-    response = client.get("/turbines?force_update=true")
-
-    assert response.status_code == 200
-    assert response.json() == {"items": ["X"]}
-    assert called["value"] is True
 
 
 def test_generate_endpoint(monkeypatch):

@@ -1,14 +1,118 @@
 from pathlib import Path
+from enum import Enum
 from typing import Annotated
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
 
-from service.runner import get_turbine_catalog_with_source, run_profiles
+from service.runner import (
+    _configure_downstream_warning_filters,
+    get_turbine_catalog,
+    run_profiles,
+)
 
 app = typer.Typer(help="Generate renewable profiles from ERA5 cutouts.")
 console = Console()
+
+
+class SortBy(str, Enum):
+    name = "name"
+    hub_height = "hub_height"
+    power = "power"
+
+
+def _to_float(value: object) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _format_number(value: float | None, *, digits: int = 3) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+
+
+def _value_to_mw(value: float) -> float:
+    # Turbine YAMLs can store power in kW (e.g. 5600) or MW (e.g. 5.6).
+    if value > 100:
+        return value / 1000.0
+    return value
+
+
+def _to_sort_float(value: str) -> float | None:
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _rated_power_mw(payload: dict[str, object]) -> float | None:
+    p_value = _to_float(payload.get("P"))
+    pow_values = payload.get("POW")
+    max_pow: float | None = None
+    if isinstance(pow_values, list):
+        float_values = [
+            float(item) for item in pow_values if isinstance(item, (int, float))
+        ]
+        if float_values:
+            max_pow = max(float_values)
+
+    if p_value is not None:
+        return _value_to_mw(p_value)
+    if max_pow is not None:
+        return _value_to_mw(max_pow)
+    return None
+
+
+def _turbine_metrics_from_file(path: Path | None) -> tuple[str, str]:
+    if path is None or not path.exists():
+        return "-", "-"
+    try:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError:
+        return "-", "-"
+    if not isinstance(payload, dict):
+        return "-", "-"
+
+    rated_power = _rated_power_mw(payload)
+    hub_height = _to_float(payload.get("HUB_HEIGHT"))
+    return _format_number(rated_power), _format_number(hub_height, digits=1)
+
+
+def _sort_turbine_rows(
+    rows: list[tuple[str, str, str]], sort_by: SortBy
+) -> list[tuple[str, str, str]]:
+    if sort_by is SortBy.name:
+        return sorted(rows, key=lambda row: row[0].casefold())
+    if sort_by is SortBy.hub_height:
+        return sorted(
+            rows,
+            key=lambda row: (
+                _to_sort_float(row[2]) is None,
+                -(_to_sort_float(row[2]) or 0.0),
+                row[0].casefold(),
+            ),
+        )
+    return sorted(
+        rows,
+        key=lambda row: (
+            _to_sort_float(row[1]) is None,
+            -(_to_sort_float(row[1]) or 0.0),
+            row[0].casefold(),
+        ),
+    )
+
+
+def _atlite_turbine_files() -> dict[str, Path]:
+    try:
+        _configure_downstream_warning_filters()
+        import atlite.resource
+    except Exception:
+        return {}
+    return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
 
 
 @app.command("generate")
@@ -64,22 +168,17 @@ def generate(
 
 @app.command("list-turbines")
 def list_turbines(
-    force_update: Annotated[
-        bool,
-        typer.Option(
-            "--force-update",
-            help="Refresh turbine list from source and overwrite cache.",
-        ),
-    ] = False,
+    sort: Annotated[
+        SortBy,
+        typer.Option("--sort", help="Sort rows by: name, hub_height, or power."),
+    ] = SortBy.power,
 ) -> None:
-    catalog, source = get_turbine_catalog_with_source(force_update=force_update)
+    catalog = get_turbine_catalog()
     atlite_turbines = catalog["atlite"]
     custom_turbines = catalog["custom_turbines"]
 
     if len(atlite_turbines) + len(custom_turbines) == 0:
-        console.print(
-            "[yellow]No cached turbines found. Run with --force-update once to populate cache.[/yellow]"
-        )
+        console.print("[yellow]No turbines found.[/yellow]")
         return
 
     atlite_table = Table(
@@ -87,16 +186,22 @@ def list_turbines(
     )
     atlite_table.add_column("#", justify="right")
     atlite_table.add_column("Turbine", overflow="fold")
-    for index, turbine in enumerate(atlite_turbines, start=1):
-        atlite_table.add_row(str(index), turbine)
+    atlite_table.add_column("Rated power (MW)", justify="right")
+    atlite_table.add_column("Hub height (m)", justify="right")
+    atlite_files = _atlite_turbine_files()
+    atlite_rows: list[tuple[str, str, str]] = []
+    for turbine in atlite_turbines:
+        rated_power_mw, hub_height_m = _turbine_metrics_from_file(
+            atlite_files.get(turbine)
+        )
+        atlite_rows.append((turbine, rated_power_mw, hub_height_m))
+    for index, (turbine, rated_power_mw, hub_height_m) in enumerate(
+        _sort_turbine_rows(atlite_rows, sort), start=1
+    ):
+        atlite_table.add_row(str(index), turbine, rated_power_mw, hub_height_m)
     console.print()
     console.print(atlite_table)
-    atlite_source = "cache"
-    if source == "refreshed":
-        atlite_source = "refreshed"
-    elif source == "cache-miss":
-        atlite_source = "missing"
-    console.print(f"[green]Source (atlite):[/green] {atlite_source}")
+    console.print("[green]Source (atlite):[/green] live")
     console.print()
 
     custom_table = Table(
@@ -106,8 +211,18 @@ def list_turbines(
     )
     custom_table.add_column("#", justify="right")
     custom_table.add_column("Turbine", overflow="fold")
-    for index, turbine in enumerate(custom_turbines, start=1):
-        custom_table.add_row(str(index), turbine)
+    custom_table.add_column("Rated power (MW)", justify="right")
+    custom_table.add_column("Hub height (m)", justify="right")
+    custom_rows: list[tuple[str, str, str]] = []
+    for turbine in custom_turbines:
+        rated_power_mw, hub_height_m = _turbine_metrics_from_file(
+            Path("custom_turbines") / f"{turbine}.yaml"
+        )
+        custom_rows.append((turbine, rated_power_mw, hub_height_m))
+    for index, (turbine, rated_power_mw, hub_height_m) in enumerate(
+        _sort_turbine_rows(custom_rows, sort), start=1
+    ):
+        custom_table.add_row(str(index), turbine, rated_power_mw, hub_height_m)
     console.print(custom_table)
     console.print()
     console.print("[green]Source (custom):[/green] local")
