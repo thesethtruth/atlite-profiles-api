@@ -143,6 +143,16 @@ def test_list_turbines_invalid_sort_value():
     assert "Invalid value for '--sort'" in result.output
 
 
+def test_source_document_text_trims_and_links():
+    long_source = "https://example.com/" + ("a" * 80)
+
+    text = cli._source_document_text(long_source)
+
+    assert text.plain == long_source[:40]
+    assert len(text.spans) == 1
+    assert long_source in text.spans[0].style
+
+
 def test_inspect_turbine_command(monkeypatch):
     monkeypatch.setattr(
         cli,

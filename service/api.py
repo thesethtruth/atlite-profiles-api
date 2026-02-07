@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from core.models import WindTurbineConfig
 from service.runner import get_available_turbines, inspect_turbine, run_profiles
 
 app = FastAPI(title="Renewables Profiles API", version="0.1.0")
@@ -16,6 +17,7 @@ class GenerateRequest(BaseModel):
     output_dir: Path = Path("output")
     cutouts: list[str] = Field(default_factory=lambda: ["europe-2024-era5.nc"])
     turbine_model: str = "NREL_ReferenceTurbine_2020ATB_4MW"
+    turbine_config: WindTurbineConfig | None = None
     slopes: list[float] = Field(default_factory=lambda: [30.0])
     azimuths: list[float] = Field(default_factory=lambda: [180.0])
     panel_model: str = "CSi"
@@ -50,6 +52,11 @@ def generate(payload: GenerateRequest) -> dict:
         output_dir=payload.output_dir,
         cutouts=payload.cutouts,
         turbine_model=payload.turbine_model,
+        turbine_config=(
+            payload.turbine_config.model_dump()
+            if payload.turbine_config is not None
+            else None
+        ),
         slopes=payload.slopes,
         azimuths=payload.azimuths,
         panel_model=payload.panel_model,

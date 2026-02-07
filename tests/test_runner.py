@@ -74,6 +74,45 @@ def test_run_profiles_counts(monkeypatch):
     assert result["output_dir"] == "out"
 
 
+def test_run_profiles_accepts_turbine_config(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class CaptureWindConfig:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    fake_profile_module = types.SimpleNamespace(
+        ProfileConfig=DummyProfileConfig,
+        WindConfig=CaptureWindConfig,
+        SolarConfig=DummySolarConfig,
+        ProfileGenerator=DummyGenerator,
+    )
+    monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
+
+    run_profiles(
+        profile_type="wind",
+        latitude=52.0,
+        longitude=5.0,
+        base_path=Path("/tmp"),
+        output_dir=Path("out"),
+        cutouts=["europe-2024-era5.nc"],
+        turbine_model="ignored-when-config-present",
+        turbine_config={
+            "name": "API_Custom",
+            "hub_height_m": 120,
+            "wind_speeds": [0, 10, 20],
+            "power_curve_mw": [0, 2, 4],
+        },
+        slopes=[30.0],
+        azimuths=[180.0],
+        panel_model="CSi",
+        visualize=False,
+    )
+
+    assert captured["turbine_model"] == "ignored-when-config-present"
+    assert captured["turbine_config"].name == "API_Custom"
+
+
 def test_configure_downstream_warning_filters(monkeypatch):
     captured: dict[str, object] = {}
 
@@ -155,6 +194,7 @@ def test_inspect_turbine_custom_yaml(tmp_path, monkeypatch):
 
     assert result["status"] == "ok"
     assert result["metadata"]["provider"] == "custom"
+    assert result["metadata"]["definition_file"] == "custom_turbines/Demo.yaml"
     assert result["metadata"]["rated_power_mw"] == 5.6
     assert result["curve"][1] == {"speed": 10.0, "power_mw": 3.2}
     assert result["curve_summary"]["point_count"] == 3
@@ -178,6 +218,10 @@ def test_inspect_turbine_uses_atlite_when_not_custom(tmp_path, monkeypatch):
 
     assert result["metadata"]["provider"] == "atlite"
     assert result["metadata"]["name"] == "ATLiteDemo"
+    assert (
+        result["metadata"]["definition_file"]
+        == "atlite/resources/windturbine/ATLiteDemo"
+    )
     assert result["metadata"]["hub_height_m"] == 90.0
     assert result["curve_summary"]["point_count"] == 3
 

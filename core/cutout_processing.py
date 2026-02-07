@@ -7,7 +7,12 @@ from pathlib import Path
 import yaml
 
 
-def get_wind_profile(lat: float, lon: float, cutout_path: Path, turbine_model: str):
+def get_wind_profile(
+    lat: float,
+    lon: float,
+    cutout_path: Path,
+    turbine: str | dict[str, object],
+):
     """
     Calculate the wind generation profile for a given location and turbine model.
     Parameters:
@@ -38,9 +43,9 @@ def get_wind_profile(lat: float, lon: float, cutout_path: Path, turbine_model: s
     nearest_x = sliced_cutout.data["x"].sel(x=lon, method="nearest")
     mask.loc[dict(x=nearest_x, y=nearest_y)] = 1
 
-    print(f"Calculating wind resource for turbine {turbine_model}")
+    print(f"Calculating wind resource for turbine {turbine}")
     wind_profile: pd.DataFrame = sliced_cutout.wind(
-        turbine=turbine_model,
+        turbine=turbine,
         layout=mask,
         per_unit=True,
         capacity_factor_timeseries=True,

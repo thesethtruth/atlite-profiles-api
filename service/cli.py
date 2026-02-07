@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+
 from service.runner import (
     _configure_downstream_warning_filters,
     get_turbine_catalog,
@@ -151,14 +152,27 @@ def _render_power_curve_chart(
         f"{' ' * max(1, width - len(f'{x_min:.1f} m/s') - len(f'{x_max:.1f} m/s'))}"
         f"{x_max:.1f} m/s"
     )
-    return "\n".join(
-        [
-            "Power (MW) vs Wind Speed (m/s)",
-            *lines,
-            x_line,
-            x_labels,
-        ]
-    )
+    chart = Text()
+    chart.append("\t\tPower (MW) vs Wind Speed (m/s)\n\n", style="bold green")
+    for line in lines:
+        chart.append(line)
+        chart.append("\n")
+    chart.append(x_line)
+    chart.append("\n")
+    chart.append(x_labels)
+    return chart
+
+
+def _source_document_text(value: object) -> Text:
+    source = str(value)
+    if len(source) == 0:
+        return Text("-")
+    if len(source) >= 40:
+        label = source[:40] + "..."
+    text = Text(label)
+    if source.startswith(("http://", "https://")):
+        text.stylize(f"link {source}", 0, len(label))
+    return text
 
 
 def _turbine_metadata_table(payload: dict[str, object]) -> Table:
@@ -171,7 +185,7 @@ def _turbine_metadata_table(payload: dict[str, object]) -> Table:
     table.add_row("Name", str(metadata["name"]))
     table.add_row("Provider", str(metadata["provider"]))
     table.add_row("Manufacturer", str(metadata["manufacturer"]))
-    table.add_row("Source", str(metadata["source"]))
+    table.add_row("Source", _source_document_text(metadata["source"]))
     table.add_row(
         "Hub Height",
         f"{_format_number(_to_float(metadata['hub_height_m']), digits=1)} m",
@@ -323,7 +337,7 @@ def inspect_turbine_command(
         expand=True,
     )
     right_card = Panel(
-        Text(chart),
+        chart,
         title="Power Curve",
         border_style="green",
         expand=True,

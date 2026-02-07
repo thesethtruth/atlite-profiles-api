@@ -66,6 +66,17 @@ def _resolve_turbine_file(turbine_model: str) -> tuple[str, Path]:
     raise ValueError(f"Turbine '{turbine_model}' was not found.")
 
 
+def _display_definition_file(
+    *, source_kind: str, source_file: Path, turbine_model: str
+) -> str:
+    if source_kind == "atlite":
+        return f"atlite/resources/windturbine/{turbine_model}"
+    try:
+        return str(source_file.relative_to(Path.cwd()))
+    except ValueError:
+        return str(source_file)
+
+
 def _to_curve_points(payload: dict[str, object]) -> list[dict[str, float]]:
     speeds = payload.get("V")
     powers = payload.get("POW")
@@ -115,7 +126,11 @@ def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
             "provider": source_kind,
             "hub_height_m": _to_float(payload.get("HUB_HEIGHT")),
             "rated_power_mw": _rated_power_mw(payload),
-            "definition_file": str(source_file),
+            "definition_file": _display_definition_file(
+                source_kind=source_kind,
+                source_file=source_file,
+                turbine_model=turbine_model,
+            ),
         },
         "curve": curve,
         "curve_summary": {
@@ -150,6 +165,7 @@ def run_profiles(
     slopes: list[float],
     azimuths: list[float],
     panel_model: str,
+    turbine_config: dict[str, object] | None = None,
     visualize: bool = False,
 ) -> dict:
     from core.profile_generator import (
@@ -158,6 +174,7 @@ def run_profiles(
         SolarConfig,
         WindConfig,
     )
+    from core.models import WindTurbineConfig
 
     profile_config = ProfileConfig(
         location={"lat": latitude, "lon": longitude},
@@ -165,7 +182,15 @@ def run_profiles(
         output_dir=output_dir,
         cutouts=[Path(cutout) for cutout in cutouts],
     )
-    wind_config = WindConfig(turbine_model=turbine_model)
+    parsed_turbine_config = (
+        WindTurbineConfig.model_validate(turbine_config)
+        if turbine_config is not None
+        else None
+    )
+    wind_config = WindConfig(
+        turbine_model=turbine_model,
+        turbine_config=parsed_turbine_config,
+    )
     solar_config = SolarConfig(
         slopes=slopes,
         azimuths=azimuths,
