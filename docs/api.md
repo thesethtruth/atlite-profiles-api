@@ -19,6 +19,10 @@ Default bind is `0.0.0.0:8000`.
 - `GET /solar-technologies/{technology}`
 - `POST /generate`
 
+At startup, inspect path parameters are constrained to the server's currently
+available catalogs (local `config/*` + atlite). In OpenAPI/Swagger this appears
+as enum values for `turbine_model` and `technology`.
+
 ### Example Request
 
 ```bash

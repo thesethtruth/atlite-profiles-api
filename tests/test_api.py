@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
 
 from service import api
+from service.api.catalog import CatalogSnapshot, apply_catalog_snapshot
+from service.api.routers import generate as generate_router
+from service.api.routers import solar as solar_router
+from service.api.routers import turbines as turbines_router
 
 client = TestClient(api.app)
 
@@ -13,7 +17,13 @@ def test_health_endpoint():
 
 
 def test_turbines_endpoint(monkeypatch):
-    monkeypatch.setattr(api, "get_available_turbines", lambda: ["X", "Y"])
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=["X", "Y"],
+            available_solar_technologies=[],
+        ),
+    )
 
     response = client.get("/turbines")
 
@@ -22,10 +32,12 @@ def test_turbines_endpoint(monkeypatch):
 
 
 def test_solar_technologies_endpoint(monkeypatch):
-    monkeypatch.setattr(
-        api,
-        "get_available_solar_technologies",
-        lambda: ["CSi", "CdTe"],
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=["CSi", "CdTe"],
+        ),
     )
 
     response = client.get("/solar-technologies")
@@ -47,11 +59,7 @@ def test_generate_endpoint(monkeypatch):
             "output_dir": "output",
         }
 
-    monkeypatch.setattr(
-        api,
-        "run_profiles",
-        fake_run_profiles,
-    )
+    monkeypatch.setattr(generate_router, "run_profiles", fake_run_profiles)
 
     payload = {
         "profile_type": "both",
@@ -99,8 +107,15 @@ def test_generate_endpoint(monkeypatch):
 
 
 def test_turbine_inspect_endpoint(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=["ModelA"],
+            available_solar_technologies=[],
+        ),
+    )
     monkeypatch.setattr(
-        api,
+        turbines_router,
         "inspect_turbine",
         lambda name: {"status": "ok", "turbine": name, "metadata": {}, "curve": []},
     )
@@ -113,10 +128,18 @@ def test_turbine_inspect_endpoint(monkeypatch):
 
 
 def test_turbine_inspect_endpoint_not_found(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=["missing"],
+            available_solar_technologies=[],
+        ),
+    )
+
     def fake_inspect(_name: str):
         raise ValueError("Turbine 'missing' was not found.")
 
-    monkeypatch.setattr(api, "inspect_turbine", fake_inspect)
+    monkeypatch.setattr(turbines_router, "inspect_turbine", fake_inspect)
 
     response = client.get("/turbines/missing")
 
@@ -125,8 +148,15 @@ def test_turbine_inspect_endpoint_not_found(monkeypatch):
 
 
 def test_solar_technology_inspect_endpoint(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=["CSi"],
+        ),
+    )
     monkeypatch.setattr(
-        api,
+        solar_router,
         "inspect_solar_technology",
         lambda name: {
             "status": "ok",
@@ -144,10 +174,18 @@ def test_solar_technology_inspect_endpoint(monkeypatch):
 
 
 def test_solar_technology_inspect_endpoint_not_found(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=["missing"],
+        ),
+    )
+
     def fake_inspect(_name: str):
         raise ValueError("Solar technology 'missing' was not found.")
 
-    monkeypatch.setattr(api, "inspect_solar_technology", fake_inspect)
+    monkeypatch.setattr(solar_router, "inspect_solar_technology", fake_inspect)
 
     response = client.get("/solar-technologies/missing")
 
@@ -186,3 +224,30 @@ def test_docs_uses_api_prefixed_openapi_url():
 
     assert response.status_code == 200
     assert "url: '/api/openapi.json'" in response.text
+
+
+def test_openapi_contains_enum_for_inspect_path_params():
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=["T1", "T2"],
+            available_solar_technologies=["CSi", "CdTe"],
+        ),
+    )
+    api.app.openapi_schema = None
+
+    schema = client.get("/openapi.json").json()
+    turbine_params = schema["paths"]["/turbines/{turbine_model}"]["get"]["parameters"]
+    solar_params = schema["paths"]["/solar-technologies/{technology}"]["get"][
+        "parameters"
+    ]
+
+    turbine_enum = next(
+        p["schema"]["enum"] for p in turbine_params if p["name"] == "turbine_model"
+    )
+    solar_enum = next(
+        p["schema"]["enum"] for p in solar_params if p["name"] == "technology"
+    )
+
+    assert turbine_enum == ["T1", "T2"]
+    assert solar_enum == ["CSi", "CdTe"]

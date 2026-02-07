@@ -5,7 +5,8 @@
 - `core/profile_generator.py`: Configuration models (`ProfileConfig`, `WindConfig`, `SolarConfig`) and orchestration logic.
 - `core/cutout_processing.py`: Low-level wind/solar extraction from atlite cutouts.
 - `service/cli.py`: Typer CLI commands.
-- `service/api.py`: FastAPI application and API entrypoint.
+- `service/api/app.py`: FastAPI application assembly and API entrypoint.
+- `service/api/routers/*.py`: Feature routers for health, turbines, solar, and generation.
 - `service/runner.py`: Shared execution layer used by CLI and API.
 - `tests/`: `pytest` suite for CLI, API, and shared runtime behavior.
 - `config/wind/*.yaml`: Local wind technology definitions loaded at runtime.
