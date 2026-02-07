@@ -1,6 +1,6 @@
 # Atlite profiles generator
 
-A wrapper around [atlite](https://github.com/PyPSA/atlite) which exposes a CLI and/or API (hosted as service here) to improve your DX when working with generation profiles and reduce leadtime in small projects. Generate wind and solar capacity-factor time series from ERA5 cutout files using `atlite`.
+A wrapper around [atlite](https://github.com/PyPSA/atlite) which exposes a CLI and/or API (hosted as service [here](https://profiles.sethvanwieringen.eu/api/docs)) to improve your DX when working with generation profiles and reduce leadtime in small projects. Generate wind and solar capacity-factor time series from ERA5 cutout files using `atlite`.
 
 ## Overview
 
