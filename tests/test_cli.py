@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+import re
 
 from service import cli
 
@@ -194,7 +195,8 @@ def test_list_turbines_invalid_sort_value():
     result = runner.invoke(cli.app, ["list-turbines", "--sort", "invalid"])
 
     assert result.exit_code != 0
-    assert "Invalid value for '--sort'" in result.output
+    plain_output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "Invalid value for '--sort'" in plain_output
 
 
 def test_source_document_text_trims_and_links():
