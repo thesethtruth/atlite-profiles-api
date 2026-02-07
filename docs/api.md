@@ -14,6 +14,7 @@ Default bind is `0.0.0.0:8000`.
 
 - `GET /health`
 - `GET /turbines`
+- `GET /turbines/{turbine_model}`
 - `POST /generate`
 
 ### Example Request

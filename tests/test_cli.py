@@ -141,3 +141,51 @@ def test_list_turbines_invalid_sort_value():
 
     assert result.exit_code != 0
     assert "Invalid value for '--sort'" in result.output
+
+
+def test_inspect_turbine_command(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "inspect_turbine",
+        lambda name: {
+            "status": "ok",
+            "turbine": name,
+            "metadata": {
+                "name": "DemoTurbine",
+                "provider": "custom",
+                "manufacturer": "ACME",
+                "source": "local",
+                "hub_height_m": 120.0,
+                "rated_power_mw": 5.6,
+                "definition_file": "custom_turbines/DemoTurbine.yaml",
+            },
+            "curve": [
+                {"speed": 0.0, "power_mw": 0.0},
+                {"speed": 10.0, "power_mw": 5.0},
+                {"speed": 25.0, "power_mw": 5.6},
+            ],
+            "curve_summary": {"point_count": 3, "speed_min": 0.0, "speed_max": 25.0},
+        },
+    )
+
+    result = runner.invoke(cli.app, ["inspect-turbine", "DemoTurbine"])
+
+    assert result.exit_code == 0
+    assert "DemoTurbine" in result.output
+    assert "Power Curve" in result.output
+    assert "Provider" in result.output
+    assert "custom" in result.output
+    assert "Power (MW) vs Wind Speed (m/s)" in result.output
+
+
+def test_inspect_turbine_command_not_found(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "inspect_turbine",
+        lambda name: (_ for _ in ()).throw(ValueError("missing")),
+    )
+
+    result = runner.invoke(cli.app, ["inspect-turbine", "Unknown"])
+
+    assert result.exit_code != 0
+    assert "missing" in result.output

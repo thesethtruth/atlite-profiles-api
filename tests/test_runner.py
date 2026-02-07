@@ -3,7 +3,12 @@ import types
 from pathlib import Path
 
 import service.runner as runner_module
-from service.runner import get_available_turbines, get_turbine_catalog, run_profiles
+from service.runner import (
+    get_available_turbines,
+    get_turbine_catalog,
+    inspect_turbine,
+    run_profiles,
+)
 
 
 class DummyGenerator:
@@ -126,3 +131,64 @@ def test_get_available_turbines_deduplicates(monkeypatch):
     )
 
     assert get_available_turbines() == ["A", "B", "Z"]
+
+
+def test_inspect_turbine_custom_yaml(tmp_path, monkeypatch):
+    custom_dir = tmp_path / "custom_turbines"
+    custom_dir.mkdir()
+    (custom_dir / "Demo.yaml").write_text(
+        (
+            "name: Demo\n"
+            "manufacturer: ACME\n"
+            "source: local\n"
+            "HUB_HEIGHT: 120\n"
+            "P: 5600\n"
+            "V: [0, 10, 20]\n"
+            "POW: [0, 3200, 5600]\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(runner_module, "_fetch_atlite_turbine_paths", lambda: {})
+
+    result = inspect_turbine("Demo")
+
+    assert result["status"] == "ok"
+    assert result["metadata"]["provider"] == "custom"
+    assert result["metadata"]["rated_power_mw"] == 5.6
+    assert result["curve"][1] == {"speed": 10.0, "power_mw": 3.2}
+    assert result["curve_summary"]["point_count"] == 3
+    assert result["curve_summary"]["speed_max"] == 20.0
+
+
+def test_inspect_turbine_uses_atlite_when_not_custom(tmp_path, monkeypatch):
+    atlite_file = tmp_path / "atlite_demo.yaml"
+    atlite_file.write_text(
+        "HUB_HEIGHT: 90\nV: [3, 4, 5]\nPOW: [0.1, 0.2, 0.3]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        runner_module,
+        "_fetch_atlite_turbine_paths",
+        lambda: {"ATLiteDemo": atlite_file},
+    )
+
+    result = inspect_turbine("ATLiteDemo")
+
+    assert result["metadata"]["provider"] == "atlite"
+    assert result["metadata"]["name"] == "ATLiteDemo"
+    assert result["metadata"]["hub_height_m"] == 90.0
+    assert result["curve_summary"]["point_count"] == 3
+
+
+def test_inspect_turbine_not_found(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(runner_module, "_fetch_atlite_turbine_paths", lambda: {})
+
+    try:
+        inspect_turbine("missing")
+    except ValueError as exc:
+        assert "missing" in str(exc)
+    else:
+        raise AssertionError("Expected inspect_turbine to raise ValueError.")

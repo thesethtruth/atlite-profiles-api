@@ -1,7 +1,10 @@
 import warnings
 from pathlib import Path
 
+import yaml
+
 TurbineCatalog = dict[str, list[str]]
+TurbineInspectPayload = dict[str, object]
 
 
 def _configure_downstream_warning_filters() -> None:
@@ -26,6 +29,101 @@ def _fetch_atlite_turbines() -> list[str]:
     import atlite.resource
 
     return sorted(set(atlite.resource.windturbines.keys()))
+
+
+def _fetch_atlite_turbine_paths() -> dict[str, Path]:
+    import atlite.resource
+
+    return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
+
+
+def _to_float(value: object) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _value_to_mw(value: float) -> float:
+    # Turbine YAMLs can store power in kW (e.g. 5600) or MW (e.g. 5.6).
+    if value > 100:
+        return value / 1000.0
+    return value
+
+
+def _resolve_turbine_file(turbine_model: str) -> tuple[str, Path]:
+    custom_file = Path("custom_turbines") / f"{turbine_model}.yaml"
+    if custom_file.exists():
+        return "custom", custom_file
+
+    try:
+        atlite_files = _fetch_atlite_turbine_paths()
+    except Exception:
+        atlite_files = {}
+    atlite_file = atlite_files.get(turbine_model)
+    if atlite_file is not None and atlite_file.exists():
+        return "atlite", atlite_file
+
+    raise ValueError(f"Turbine '{turbine_model}' was not found.")
+
+
+def _to_curve_points(payload: dict[str, object]) -> list[dict[str, float]]:
+    speeds = payload.get("V")
+    powers = payload.get("POW")
+    if not isinstance(speeds, list) or not isinstance(powers, list):
+        return []
+
+    points: list[dict[str, float]] = []
+    for speed, power in zip(speeds, powers):
+        speed_value = _to_float(speed)
+        power_value = _to_float(power)
+        if speed_value is None or power_value is None:
+            continue
+        points.append({"speed": speed_value, "power_mw": _value_to_mw(power_value)})
+
+    return points
+
+
+def _rated_power_mw(payload: dict[str, object]) -> float | None:
+    p_value = _to_float(payload.get("P"))
+    if p_value is not None:
+        return _value_to_mw(p_value)
+
+    curve_points = _to_curve_points(payload)
+    if curve_points:
+        return max(point["power_mw"] for point in curve_points)
+
+    return None
+
+
+def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
+    source_kind, source_file = _resolve_turbine_file(turbine_model)
+    with source_file.open(encoding="utf-8") as handle:
+        payload = yaml.safe_load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Turbine '{turbine_model}' has an invalid definition file.")
+
+    curve = _to_curve_points(payload)
+    speeds = [point["speed"] for point in curve]
+
+    return {
+        "status": "ok",
+        "turbine": turbine_model,
+        "metadata": {
+            "name": str(payload.get("name") or turbine_model),
+            "manufacturer": str(payload.get("manufacturer") or "unknown"),
+            "source": str(payload.get("source") or source_kind),
+            "provider": source_kind,
+            "hub_height_m": _to_float(payload.get("HUB_HEIGHT")),
+            "rated_power_mw": _rated_power_mw(payload),
+            "definition_file": str(source_file),
+        },
+        "curve": curve,
+        "curve_summary": {
+            "point_count": len(curve),
+            "speed_min": min(speeds) if speeds else None,
+            "speed_max": max(speeds) if speeds else None,
+        },
+    }
 
 
 def get_turbine_catalog() -> TurbineCatalog:

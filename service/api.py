@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from service.runner import get_available_turbines, run_profiles
+from service.runner import get_available_turbines, inspect_turbine, run_profiles
 
 app = FastAPI(title="Renewables Profiles API", version="0.1.0")
 
@@ -30,6 +30,14 @@ def health() -> dict[str, str]:
 @app.get("/turbines")
 def list_turbines() -> dict[str, list[str]]:
     return {"items": get_available_turbines()}
+
+
+@app.get("/turbines/{turbine_model}")
+def turbine_inspect(turbine_model: str) -> dict[str, object]:
+    try:
+        return inspect_turbine(turbine_model)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/generate")

@@ -46,3 +46,29 @@ def test_generate_endpoint(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_turbine_inspect_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "inspect_turbine",
+        lambda name: {"status": "ok", "turbine": name, "metadata": {}, "curve": []},
+    )
+
+    response = client.get("/turbines/ModelA")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["turbine"] == "ModelA"
+
+
+def test_turbine_inspect_endpoint_not_found(monkeypatch):
+    def fake_inspect(_name: str):
+        raise ValueError("Turbine 'missing' was not found.")
+
+    monkeypatch.setattr(api, "inspect_turbine", fake_inspect)
+
+    response = client.get("/turbines/missing")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Turbine 'missing' was not found."

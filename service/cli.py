@@ -4,12 +4,16 @@ from typing import Annotated
 
 import typer
 import yaml
+from rich.columns import Columns
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from service.runner import (
     _configure_downstream_warning_filters,
     get_turbine_catalog,
+    inspect_turbine,
     run_profiles,
 )
 
@@ -115,6 +119,75 @@ def _atlite_turbine_files() -> dict[str, Path]:
     return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
 
 
+def _render_power_curve_chart(
+    curve: list[dict[str, float]], *, width: int = 46, height: int = 14
+) -> str:
+    if not curve:
+        return "No power curve points found."
+
+    x_values = [point["speed"] for point in curve]
+    y_values = [point["power_mw"] for point in curve]
+    x_min, x_max = min(x_values), max(x_values)
+    y_min, y_max = min(y_values), max(y_values)
+
+    x_span = x_max - x_min if x_max > x_min else 1.0
+    y_span = y_max - y_min if y_max > y_min else 1.0
+    plot = [[" "] * width for _ in range(height)]
+
+    for point in curve:
+        x_index = int(round(((point["speed"] - x_min) / x_span) * (width - 1)))
+        y_index = int(round(((point["power_mw"] - y_min) / y_span) * (height - 1)))
+        row = height - 1 - y_index
+        plot[row][x_index] = "●"
+
+    lines: list[str] = []
+    for index, row in enumerate(plot):
+        y_axis_value = y_max - ((y_span * index) / max(height - 1, 1))
+        lines.append(f"{y_axis_value:>6.2f} |{''.join(row)}")
+
+    x_line = " " * 7 + "+" + ("-" * width)
+    x_labels = (
+        f"{'':>7}{x_min:.1f} m/s"
+        f"{' ' * max(1, width - len(f'{x_min:.1f} m/s') - len(f'{x_max:.1f} m/s'))}"
+        f"{x_max:.1f} m/s"
+    )
+    return "\n".join(
+        [
+            "Power (MW) vs Wind Speed (m/s)",
+            *lines,
+            x_line,
+            x_labels,
+        ]
+    )
+
+
+def _turbine_metadata_table(payload: dict[str, object]) -> Table:
+    metadata = payload["metadata"]
+    curve_summary = payload["curve_summary"]
+    table = Table.grid(padding=(0, 1))
+    table.add_column(style="bold cyan")
+    table.add_column()
+
+    table.add_row("Name", str(metadata["name"]))
+    table.add_row("Provider", str(metadata["provider"]))
+    table.add_row("Manufacturer", str(metadata["manufacturer"]))
+    table.add_row("Source", str(metadata["source"]))
+    table.add_row(
+        "Hub Height",
+        f"{_format_number(_to_float(metadata['hub_height_m']), digits=1)} m",
+    )
+    table.add_row(
+        "Rated Power", f"{_format_number(_to_float(metadata['rated_power_mw']))} MW"
+    )
+    table.add_row("Curve Points", str(curve_summary["point_count"]))
+    table.add_row(
+        "Speed Range",
+        f"{_format_number(_to_float(curve_summary['speed_min']), digits=1)} - {_format_number(_to_float(curve_summary['speed_max']), digits=1)} m/s",
+    )
+    table.add_row("Definition", str(metadata["definition_file"]))
+    return table
+
+
 @app.command("generate")
 def generate(
     profile_type: Annotated[
@@ -182,7 +255,9 @@ def list_turbines(
         return
 
     atlite_table = Table(
-        title="Available Turbines (atlite)", show_header=True, header_style="bold magenta"
+        title="Available Turbines (atlite)",
+        show_header=True,
+        header_style="bold magenta",
     )
     atlite_table.add_column("#", justify="right")
     atlite_table.add_column("Turbine", overflow="fold")
@@ -226,6 +301,40 @@ def list_turbines(
     console.print(custom_table)
     console.print()
     console.print("[green]Source (custom):[/green] local")
+
+
+@app.command("inspect-turbine")
+def inspect_turbine_command(
+    turbine_model: Annotated[
+        str, typer.Argument(help="Turbine model name to inspect.")
+    ],
+) -> None:
+    try:
+        payload = inspect_turbine(turbine_model)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="turbine-model")
+
+    metadata = payload["metadata"]
+    chart = _render_power_curve_chart(payload["curve"])
+    left_card = Panel(
+        _turbine_metadata_table(payload),
+        title=str(metadata["name"]),
+        border_style="cyan",
+        expand=True,
+    )
+    right_card = Panel(
+        Text(chart),
+        title="Power Curve",
+        border_style="green",
+        expand=True,
+    )
+    console.print(
+        Columns(
+            [left_card, right_card],
+            equal=True,
+            expand=True,
+        )
+    )
 
 
 if __name__ == "__main__":
