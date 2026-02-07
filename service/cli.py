@@ -2,10 +2,13 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
-from service.runner import get_available_turbines, run_profiles
+from service.runner import get_turbine_catalog_with_source, run_profiles
 
 app = typer.Typer(help="Generate renewable profiles from ERA5 cutouts.")
+console = Console()
 
 
 @app.command("generate")
@@ -60,9 +63,54 @@ def generate(
 
 
 @app.command("list-turbines")
-def list_turbines() -> None:
-    for turbine in get_available_turbines():
-        typer.echo(turbine)
+def list_turbines(
+    force_update: Annotated[
+        bool,
+        typer.Option(
+            "--force-update",
+            help="Refresh turbine list from source and overwrite cache.",
+        ),
+    ] = False,
+) -> None:
+    catalog, source = get_turbine_catalog_with_source(force_update=force_update)
+    atlite_turbines = catalog["atlite"]
+    custom_turbines = catalog["custom_turbines"]
+
+    if len(atlite_turbines) + len(custom_turbines) == 0:
+        console.print(
+            "[yellow]No cached turbines found. Run with --force-update once to populate cache.[/yellow]"
+        )
+        return
+
+    atlite_table = Table(
+        title="Available Turbines (atlite)", show_header=True, header_style="bold magenta"
+    )
+    atlite_table.add_column("#", justify="right")
+    atlite_table.add_column("Turbine", overflow="fold")
+    for index, turbine in enumerate(atlite_turbines, start=1):
+        atlite_table.add_row(str(index), turbine)
+    console.print()
+    console.print(atlite_table)
+    atlite_source = "cache"
+    if source == "refreshed":
+        atlite_source = "refreshed"
+    elif source == "cache-miss":
+        atlite_source = "missing"
+    console.print(f"[green]Source (atlite):[/green] {atlite_source}")
+    console.print()
+
+    custom_table = Table(
+        title="Available Turbines (custom)",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    custom_table.add_column("#", justify="right")
+    custom_table.add_column("Turbine", overflow="fold")
+    for index, turbine in enumerate(custom_turbines, start=1):
+        custom_table.add_row(str(index), turbine)
+    console.print(custom_table)
+    console.print()
+    console.print("[green]Source (custom):[/green] local")
 
 
 if __name__ == "__main__":

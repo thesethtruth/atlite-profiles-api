@@ -95,7 +95,9 @@ uv run profiles-cli generate --profile-type both --base-path data --output-dir o
 List available turbines:
 ```bash
 uv run profiles-cli list-turbines
+uv run profiles-cli list-turbines --force-update
 ```
+The CLI prints separate atlite and custom turbine tables with source labels and spacing between sections for readability.
 
 ### FastAPI Service
 

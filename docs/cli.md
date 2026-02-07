@@ -7,6 +7,7 @@ The CLI entrypoint is `profiles-cli`.
 ```bash
 uv run profiles-cli --help
 uv run profiles-cli list-turbines
+uv run profiles-cli list-turbines --force-update
 uv run profiles-cli generate --profile-type both --base-path data --output-dir output --cutout europe-2024-era5.nc
 ```
 

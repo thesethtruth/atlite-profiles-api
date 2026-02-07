@@ -2665,7 +2665,7 @@ wheels = [
 [[package]]
 name = "renewables-profiles-generator"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "atlite" },
     { name = "fastapi" },
@@ -2674,6 +2674,7 @@ dependencies = [
     { name = "plotly" },
     { name = "pydantic" },
     { name = "pypsa" },
+    { name = "rich" },
     { name = "seaborn" },
     { name = "typer" },
     { name = "uvicorn" },
@@ -2698,6 +2699,7 @@ requires-dist = [
     { name = "plotly", specifier = "==5.24.1" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pypsa", specifier = "==0.32.0" },
+    { name = "rich", specifier = "==14.1.0" },
     { name = "seaborn", specifier = "==0.13.2" },
     { name = "typer", specifier = "==0.16.1" },
     { name = "uvicorn", specifier = "==0.35.0" },
@@ -2763,15 +2765,15 @@ wheels = [
 
 [[package]]
 name = "rich"
-version = "14.3.2"
+version = "14.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown-it-py" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/99/a4cab2acbb884f80e558b0771e97e21e939c5dfb460f488d19df485e8298/rich-14.3.2.tar.gz", hash = "sha256:e712f11c1a562a11843306f5ed999475f09ac31ffb64281f73ab29ffdda8b3b8", size = 230143, upload-time = "2026-02-01T16:20:47.908Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/75/af448d8e52bf1d8fa6a9d089ca6c07ff4453d86c65c145d0a300bb073b9b/rich-14.1.0.tar.gz", hash = "sha256:e497a48b844b0320d45007cdebfeaeed8db2a4f4bcf49f15e455cfc4af11eaa8", size = 224441, upload-time = "2025-07-25T07:32:58.125Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/45/615f5babd880b4bd7d405cc0dc348234c5ffb6ed1ea33e152ede08b2072d/rich-14.3.2-py3-none-any.whl", hash = "sha256:08e67c3e90884651da3239ea668222d19bea7b589149d8014a21c633420dbb69", size = 309963, upload-time = "2026-02-01T16:20:46.078Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/30/3c4d035596d3cf444529e0b2953ad0466f6049528a879d27534700580395/rich-14.1.0-py3-none-any.whl", hash = "sha256:536f5f1785986d6dbdea3c75205c473f970777b4a0d6c6dd1b696aa05a3fa04f", size = 243368, upload-time = "2025-07-25T07:32:56.73Z" },
 ]
 
 [[package]]

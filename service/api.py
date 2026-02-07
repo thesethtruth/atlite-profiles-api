@@ -28,8 +28,8 @@ def health() -> dict[str, str]:
 
 
 @app.get("/turbines")
-def list_turbines() -> dict[str, list[str]]:
-    return {"items": get_available_turbines()}
+def list_turbines(force_update: bool = False) -> dict[str, list[str]]:
+    return {"items": get_available_turbines(force_update=force_update)}
 
 
 @app.post("/generate")
