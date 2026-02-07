@@ -32,11 +32,12 @@ docker run --rm -p 8085:8085 \
 ## Routes
 
 - API: `http://localhost:8085/api/*` (prefix `/api` is stripped before forwarding to FastAPI)
-- Docs: `http://localhost:8085/docs` (prefix `/docs` is stripped before serving static site files)
+- Docs: `http://localhost:8085/docs/` (prefix `/docs` is stripped before serving static site files)
+- FastAPI Swagger UI: `http://localhost:8085/api/docs`
 
 Examples:
 
 ```bash
 curl http://localhost:8085/api/health
-open http://localhost:8085/docs
+open http://localhost:8085/docs/
 ```

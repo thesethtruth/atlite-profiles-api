@@ -111,3 +111,10 @@ def test_generate_endpoint_invalid_turbine_config():
     response = client.post("/generate", json=payload)
 
     assert response.status_code == 422
+
+
+def test_docs_uses_api_prefixed_openapi_url():
+    response = client.get("/docs")
+
+    assert response.status_code == 200
+    assert "url: '/api/openapi.json'" in response.text

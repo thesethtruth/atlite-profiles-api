@@ -5,7 +5,10 @@
         reverse_proxy 127.0.0.1:8000
     }
 
-    handle_path /docs* {
+    @docs_no_slash path /docs
+    redir @docs_no_slash /docs/ 308
+
+    handle_path /docs/* {
         root * /app/site
         try_files {path} {path}/ /index.html
         file_server

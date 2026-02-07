@@ -18,7 +18,7 @@ docker compose up --build
 ```
 
 - API under Caddy: `http://localhost:8085/api/*`
-- Docs under Caddy: `http://localhost:8085/docs`
+- Docs under Caddy: `http://localhost:8085/docs/`
 
 ## Project Areas
 

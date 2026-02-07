@@ -6,7 +6,11 @@ from pydantic import BaseModel, Field
 from core.models import WindTurbineConfig
 from service.runner import get_available_turbines, inspect_turbine, run_profiles
 
-app = FastAPI(title="Renewables Profiles API", version="0.1.0")
+app = FastAPI(
+    title="Renewables Profiles API",
+    version="0.1.0",
+    root_path="/api",
+)
 
 
 class GenerateRequest(BaseModel):
