@@ -46,4 +46,4 @@ If formatting/linting tools are introduced later, add them to `pyproject.toml` a
 ## Documentation & Workflow Rules
 - Keep `README.md` concise (quick start + pointers). Put detailed behavior, options, and examples in `/docs` and link from README.
 - When behavior, commands, or interfaces change: update `/docs` first, then update README only if navigation/quick-start pointers changed.
-- Do not open PRs or make commits from the agent workflow; make changes directly in this repository working tree only.
+- Do not open PRs or make commits from the agent workflow, make changes directly in this repository working tree only.
