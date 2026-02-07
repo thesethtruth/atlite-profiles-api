@@ -135,8 +135,8 @@ def get_available_turbine_list():
     windturbines = atlite.resource.windturbines
     available_turbines = list(windturbines.keys())
 
-    # Add custom turbines from custom_turbines folder
-    custom_turbines_dir = Path("custom_turbines")
+    # Add custom turbines from config/wind folder
+    custom_turbines_dir = Path("config/wind")
     if custom_turbines_dir.exists():
         for yaml_file in custom_turbines_dir.glob("*.yaml"):
             # Remove .yaml extension to get turbine name
@@ -153,7 +153,7 @@ def get_available_solar_technology_list():
     solarpanels = atlite.resource.solarpanels
     available_technologies = list(solarpanels.keys())
 
-    custom_dir = Path("custom_solar_technologies")
+    custom_dir = Path("config/solar")
     if custom_dir.exists():
         for yaml_file in custom_dir.glob("*.yaml"):
             available_technologies.append(yaml_file.stem)

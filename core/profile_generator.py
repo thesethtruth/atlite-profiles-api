@@ -92,7 +92,7 @@ class WindConfig(BaseModel):
         return self.turbine_model
 
     def _custom_turbine_payload(self) -> dict[str, object] | None:
-        custom_file = Path("custom_turbines") / f"{self.turbine_model}.yaml"
+        custom_file = Path("config/wind") / f"{self.turbine_model}.yaml"
         if not custom_file.exists():
             return None
         with custom_file.open(encoding="utf-8") as handle:
@@ -112,7 +112,7 @@ class WindConfig(BaseModel):
             normalized.setdefault("name", self.turbine_model)
             return normalized
 
-        # Support API/CLI schema style persisted to custom_turbines.
+        # Support API/CLI schema style persisted to config/wind.
         if {
             "hub_height_m",
             "wind_speeds",
@@ -164,7 +164,28 @@ class SolarConfig(BaseModel):
     def atlite_panel(self) -> str | dict[str, object]:
         if self.panel_config is not None:
             return self.panel_config.to_atlite_panel()
+        custom_payload = self._custom_panel_payload()
+        if custom_payload is not None:
+            return custom_payload
         return self.panel_model
+
+    def _custom_panel_payload(self) -> dict[str, object] | None:
+        custom_file = Path("config/solar") / f"{self.panel_model}.yaml"
+        if not custom_file.exists():
+            return None
+        with custom_file.open(encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle)
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"Invalid custom solar definition for '{self.panel_model}': expected object YAML."
+            )
+        return self._normalize_custom_panel_payload(raw)
+
+    def _normalize_custom_panel_payload(
+        self, payload: dict[str, Any]
+    ) -> dict[str, object]:
+        config = SolarTechnologyConfig.from_payload(payload, default_name=self.panel_model)
+        return config.to_atlite_panel()
 
 
 class ProfileGenerator:

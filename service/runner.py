@@ -76,6 +76,33 @@ def _value_to_mw(value: float) -> float:
     return value
 
 
+def _infer_power_scale(payload: dict[str, object]) -> float:
+    """
+    Infer a single power unit scale for the full turbine payload.
+    Returns 1.0 when values already look like MW, or 0.001 when values look like kW.
+    """
+    values: list[float] = []
+
+    p_value = _to_float(payload.get("P"))
+    if p_value is not None:
+        values.append(abs(p_value))
+
+    pow_values = payload.get("POW")
+    if isinstance(pow_values, list):
+        for item in pow_values:
+            numeric = _to_float(item)
+            if numeric is not None:
+                values.append(abs(numeric))
+
+    if not values:
+        return 1.0
+
+    # kW-style payloads have magnitudes in the hundreds/thousands.
+    if max(values) > 100:
+        return 0.001
+    return 1.0
+
+
 def _resolve_technology_file(
     technology: str,
     *,
@@ -120,21 +147,25 @@ def _to_curve_points(payload: dict[str, object]) -> list[dict[str, float]]:
     if not isinstance(speeds, list) or not isinstance(powers, list):
         return []
 
+    power_scale = _infer_power_scale(payload)
     points: list[dict[str, float]] = []
     for speed, power in zip(speeds, powers):
         speed_value = _to_float(speed)
         power_value = _to_float(power)
         if speed_value is None or power_value is None:
             continue
-        points.append({"speed": speed_value, "power_mw": _value_to_mw(power_value)})
+        points.append(
+            {"speed": speed_value, "power_mw": power_value * power_scale}
+        )
 
     return points
 
 
 def _rated_power_mw(payload: dict[str, object]) -> float | None:
+    power_scale = _infer_power_scale(payload)
     p_value = _to_float(payload.get("P"))
     if p_value is not None:
-        return _value_to_mw(p_value)
+        return p_value * power_scale
 
     curve_points = _to_curve_points(payload)
     if curve_points:
@@ -146,7 +177,7 @@ def _rated_power_mw(payload: dict[str, object]) -> float | None:
 def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
     source_kind, source_file = _resolve_technology_file(
         turbine_model,
-        local_dir="custom_turbines",
+        local_dir="config/wind",
         atlite_paths_fetcher=_fetch_atlite_turbine_paths,
         not_found_label="Turbine",
     )
@@ -188,7 +219,7 @@ def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
 def inspect_solar_technology(technology: str) -> SolarInspectPayload:
     source_kind, source_file = _resolve_technology_file(
         technology,
-        local_dir="custom_solar_technologies",
+        local_dir="config/solar",
         atlite_paths_fetcher=_fetch_atlite_solar_paths,
         not_found_label="Solar technology",
     )
@@ -223,14 +254,14 @@ def inspect_solar_technology(technology: str) -> SolarInspectPayload:
 def get_turbine_catalog() -> TurbineCatalog:
     return TurbineCatalogResponse(
         atlite=_fetch_atlite_turbines(),
-        custom_turbines=_list_local_yaml_names("custom_turbines"),
+        custom_turbines=_list_local_yaml_names("config/wind"),
     ).model_dump()
 
 
 def get_solar_catalog() -> SolarCatalog:
     return SolarCatalogResponse(
         atlite=_fetch_atlite_solar_technologies(),
-        custom_solar_technologies=_list_local_yaml_names("custom_solar_technologies"),
+        custom_solar_technologies=_list_local_yaml_names("config/solar"),
     ).model_dump()
 
 

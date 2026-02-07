@@ -9,7 +9,7 @@ A wrapper around [atlite](https://github.com/PyPSA/atlite) which exposes a CLI a
 - Turbine inspection via `profiles-cli inspect-turbine`
 - FastAPI service for API-based execution
 - Optional inline API `turbine_config` for custom wind curves
-- Support for local custom turbine YAMLs in `custom_turbines/`
+- Support for local wind/solar YAML configs in `config/wind/` and `config/solar/`
 - Automated `pytest` suite for runner, CLI, and API behavior
 - Docker deployment with Caddy routing `/api` and `/docs`
 
@@ -18,7 +18,8 @@ A wrapper around [atlite](https://github.com/PyPSA/atlite) which exposes a CLI a
 - `core/`: generation and cutout processing logic
 - `service/`: CLI and API entrypoints/runtime integration
 - `tests/`: automated tests
-- `custom_turbines/`: local turbine definitions
+- `config/wind/`: local wind technology definitions
+- `config/solar/`: local solar technology definitions
 - `docs/`: detailed user and interface documentation
 
 ## Quick Start

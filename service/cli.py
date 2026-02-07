@@ -52,6 +52,31 @@ def _value_to_mw(value: float) -> float:
     return value
 
 
+def _infer_power_scale(payload: dict[str, object]) -> float:
+    """
+    Infer a single power unit scale for a full turbine payload.
+    Returns 1.0 for MW-style values and 0.001 for kW-style values.
+    """
+    values: list[float] = []
+
+    p_value = _to_float(payload.get("P"))
+    if p_value is not None:
+        values.append(abs(p_value))
+
+    pow_values = payload.get("POW")
+    if isinstance(pow_values, list):
+        for item in pow_values:
+            numeric = _to_float(item)
+            if numeric is not None:
+                values.append(abs(numeric))
+
+    if not values:
+        return 1.0
+    if max(values) > 100:
+        return 0.001
+    return 1.0
+
+
 def _to_sort_float(value: str) -> float | None:
     try:
         return float(value)
@@ -60,6 +85,7 @@ def _to_sort_float(value: str) -> float | None:
 
 
 def _rated_power_mw(payload: dict[str, object]) -> float | None:
+    power_scale = _infer_power_scale(payload)
     p_value = _to_float(payload.get("P"))
     pow_values = payload.get("POW")
     max_pow: float | None = None
@@ -71,9 +97,9 @@ def _rated_power_mw(payload: dict[str, object]) -> float | None:
             max_pow = max(float_values)
 
     if p_value is not None:
-        return _value_to_mw(p_value)
+        return p_value * power_scale
     if max_pow is not None:
-        return _value_to_mw(max_pow)
+        return max_pow * power_scale
     return None
 
 
@@ -463,7 +489,7 @@ def list_turbines(
     custom_rows: list[tuple[str, str, str]] = []
     for turbine in custom_turbines:
         rated_power_mw, hub_height_m = _turbine_metrics_from_file(
-            Path("custom_turbines") / f"{turbine}.yaml"
+            Path("config/wind") / f"{turbine}.yaml"
         )
         custom_rows.append((turbine, rated_power_mw, hub_height_m))
     for index, (turbine, rated_power_mw, hub_height_m) in enumerate(

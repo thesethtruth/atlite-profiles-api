@@ -3,11 +3,12 @@ from pathlib import Path
 import pytest
 
 from core.profile_generator import WindConfig
+from core.profile_generator import SolarConfig
 
 
 def test_wind_config_uses_custom_turbine_atlite_yaml(tmp_path, monkeypatch):
-    custom_dir = tmp_path / "custom_turbines"
-    custom_dir.mkdir()
+    custom_dir = tmp_path / "config/wind"
+    custom_dir.mkdir(parents=True)
     (custom_dir / "MyCustom.yaml").write_text(
         (
             "HUB_HEIGHT: 145\n"
@@ -31,8 +32,8 @@ def test_wind_config_uses_custom_turbine_atlite_yaml(tmp_path, monkeypatch):
 
 
 def test_wind_config_uses_custom_turbine_api_yaml(tmp_path, monkeypatch):
-    custom_dir = tmp_path / "custom_turbines"
-    custom_dir.mkdir()
+    custom_dir = tmp_path / "config/wind"
+    custom_dir.mkdir(parents=True)
     (custom_dir / "MyApiStyle.yaml").write_text(
         (
             "name: MyApiStyle\n"
@@ -58,8 +59,8 @@ def test_wind_config_uses_custom_turbine_api_yaml(tmp_path, monkeypatch):
 
 
 def test_wind_config_rejects_invalid_custom_turbine_yaml(tmp_path, monkeypatch):
-    custom_dir = tmp_path / "custom_turbines"
-    custom_dir.mkdir()
+    custom_dir = tmp_path / "config/wind"
+    custom_dir.mkdir(parents=True)
     (custom_dir / "Broken.yaml").write_text("foo: bar\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
@@ -71,3 +72,57 @@ def test_wind_config_rejects_invalid_custom_turbine_yaml(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="missing required turbine fields"):
         config.atlite_turbine()
+
+
+def test_solar_config_uses_custom_panel_wrapper_yaml(tmp_path, monkeypatch):
+    custom_dir = tmp_path / "config/solar"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "MyPanel.yaml").write_text(
+        (
+            "name: MyPanel\n"
+            "manufacturer: ACME\n"
+            "panel_parameters:\n"
+            "  A: 1.0\n"
+            "  B: 2.0\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "core.profile_generator.get_available_solar_technology_list",
+        lambda: ["MyPanel"],
+    )
+
+    config = SolarConfig(panel_model="MyPanel")
+    payload = config.atlite_panel()
+
+    assert isinstance(payload, dict)
+    assert payload["A"] == 1.0
+    assert payload["B"] == 2.0
+    assert payload["name"] == "MyPanel"
+
+
+def test_solar_config_uses_custom_panel_raw_yaml(tmp_path, monkeypatch):
+    custom_dir = tmp_path / "config/solar"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "RawPanel.yaml").write_text(
+        (
+            "name: RawPanel\n"
+            "A: 1.5\n"
+            "B: 3.5\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "core.profile_generator.get_available_solar_technology_list",
+        lambda: ["RawPanel"],
+    )
+
+    config = SolarConfig(panel_model="RawPanel")
+    payload = config.atlite_panel()
+
+    assert isinstance(payload, dict)
+    assert payload["A"] == 1.5
+    assert payload["B"] == 3.5
+    assert payload["name"] == "RawPanel"

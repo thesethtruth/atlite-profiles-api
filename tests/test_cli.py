@@ -128,6 +128,16 @@ def test_turbine_metrics_from_file_falls_back_to_max_pow(tmp_path):
     assert hub_height_m == "15"
 
 
+def test_turbine_metrics_from_file_uses_single_unit_scale(tmp_path):
+    fp = tmp_path / "mixed_units.yaml"
+    fp.write_text("HUB_HEIGHT: 120\nPOW: [0, 50, 5600]\n", encoding="utf-8")
+
+    rated_power_mw, hub_height_m = cli._turbine_metrics_from_file(fp)
+
+    assert rated_power_mw == "5.6"
+    assert hub_height_m == "120"
+
+
 def test_sort_turbine_rows_by_name():
     rows = [
         ("Beta", "1.0", "80"),
@@ -216,7 +226,7 @@ def test_inspect_turbine_command(monkeypatch):
                 "source": "local",
                 "hub_height_m": 120.0,
                 "rated_power_mw": 5.6,
-                "definition_file": "custom_turbines/DemoTurbine.yaml",
+                "definition_file": "config/wind/DemoTurbine.yaml",
             },
             "curve": [
                 {"speed": 0.0, "power_mw": 0.0},
@@ -293,7 +303,7 @@ def test_inspect_solar_technology_command(monkeypatch):
                 "provider": "custom",
                 "manufacturer": "ACME",
                 "source": "local",
-                "definition_file": "custom_solar_technologies/MyPanel.yaml",
+                "definition_file": "config/solar/MyPanel.yaml",
             },
             "parameters": {"A": 1.0, "B": 2.0},
         },

@@ -25,7 +25,8 @@ docker compose up --build
 - `core/`: generation and cutout processing logic
 - `service/`: Typer CLI + FastAPI API layer
 - `tests/`: pytest suite
-- `custom_turbines/`: custom turbine definitions
+- `config/wind/`: custom wind technology definitions
+- `config/solar/`: custom solar technology definitions
 
 ## Data Requirement
 

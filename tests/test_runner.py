@@ -2,6 +2,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 import service.runner as runner_module
 from service.runner import (
     get_available_turbines,
@@ -141,8 +143,8 @@ def test_get_turbine_catalog_live_fetch_with_local_custom(tmp_path, monkeypatch)
     monkeypatch.setitem(sys.modules, "atlite", fake_atlite_module)
     monkeypatch.setitem(sys.modules, "atlite.resource", fake_atlite_resource)
 
-    custom_dir = tmp_path / "custom_turbines"
-    custom_dir.mkdir()
+    custom_dir = tmp_path / "config/wind"
+    custom_dir.mkdir(parents=True)
     (custom_dir / "Z.yaml").write_text("", encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
@@ -173,8 +175,8 @@ def test_get_available_turbines_deduplicates(monkeypatch):
 
 
 def test_inspect_turbine_custom_yaml(tmp_path, monkeypatch):
-    custom_dir = tmp_path / "custom_turbines"
-    custom_dir.mkdir()
+    custom_dir = tmp_path / "config/wind"
+    custom_dir.mkdir(parents=True)
     (custom_dir / "Demo.yaml").write_text(
         (
             "name: Demo\n"
@@ -194,8 +196,8 @@ def test_inspect_turbine_custom_yaml(tmp_path, monkeypatch):
 
     assert result["status"] == "ok"
     assert result["metadata"]["provider"] == "custom"
-    assert result["metadata"]["definition_file"] == "custom_turbines/Demo.yaml"
-    assert result["metadata"]["rated_power_mw"] == 5.6
+    assert result["metadata"]["definition_file"] == "config/wind/Demo.yaml"
+    assert result["metadata"]["rated_power_mw"] == pytest.approx(5.6)
     assert result["curve"][1] == {"speed": 10.0, "power_mw": 3.2}
     assert result["curve_summary"]["point_count"] == 3
     assert result["curve_summary"]["speed_max"] == 20.0
@@ -224,6 +226,27 @@ def test_inspect_turbine_uses_atlite_when_not_custom(tmp_path, monkeypatch):
     )
     assert result["metadata"]["hub_height_m"] == 90.0
     assert result["curve_summary"]["point_count"] == 3
+
+
+def test_inspect_turbine_infers_power_unit_once_for_full_curve(tmp_path, monkeypatch):
+    custom_dir = tmp_path / "config/wind"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "MixedUnits.yaml").write_text(
+        (
+            "HUB_HEIGHT: 100\n"
+            "V: [0, 10, 20]\n"
+            "POW: [0, 50, 5600]\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(runner_module, "_fetch_atlite_turbine_paths", lambda: {})
+
+    result = inspect_turbine("MixedUnits")
+
+    # Inferred as kW for the full payload, so all POW values are scaled consistently.
+    assert result["curve"][1] == {"speed": 10.0, "power_mw": 0.05}
+    assert result["metadata"]["rated_power_mw"] == pytest.approx(5.6)
 
 
 def test_inspect_turbine_not_found(monkeypatch, tmp_path):
