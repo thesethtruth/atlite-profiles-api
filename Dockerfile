@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends caddy \
+    && apt-get install -y --no-install-recommends caddy libexpat1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app
