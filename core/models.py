@@ -51,10 +51,142 @@ class WindTurbineConfig(BaseModel):
 class SolarTechnologyConfig(BaseModel):
     """User-provided solar technology definition for generation."""
 
+    model: Literal["huld", "bofinger"]
     name: str = Field(min_length=1)
-    panel_parameters: dict[str, Any] = Field(min_length=1)
     manufacturer: str | None = None
     source: str | None = None
+    inverter_efficiency: float = Field(gt=0, le=1)
+
+    # Huld model parameters
+    efficiency: float | None = Field(default=None, gt=0)
+    c_temp_amb: float | None = None
+    c_temp_irrad: float | None = None
+    r_tamb: float | None = None
+    r_tmod: float | None = None
+    r_irradiance: float | None = Field(default=None, gt=0)
+    k_1: float | None = None
+    k_2: float | None = None
+    k_3: float | None = None
+    k_4: float | None = None
+    k_5: float | None = None
+    k_6: float | None = None
+
+    # Bofinger model parameters
+    threshold: float | None = None
+    area: float | None = Field(default=None, gt=0)
+    rated_production: float | None = Field(default=None, gt=0)
+    A: float | None = None
+    B: float | None = None
+    C: float | None = None
+    D: float | None = None
+    NOCT: float | None = None
+    Tstd: float | None = None
+    Tamb: float | None = None
+    Intc: float | None = None
+    ta: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap_or_infer_payload(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+
+        panel_parameters = value.get("panel_parameters")
+        if isinstance(panel_parameters, dict):
+            merged = dict(panel_parameters)
+            for key in ("name", "manufacturer", "source", "model"):
+                if key in value and value[key] is not None:
+                    merged.setdefault(key, value[key])
+            value = merged
+
+        if "model" not in value:
+            inferred = cls._infer_model(value)
+            if inferred is not None:
+                value = dict(value)
+                value["model"] = inferred
+
+        if "name" not in value or not value.get("name"):
+            value = dict(value)
+            value["name"] = "API_Custom_Solar"
+
+        return value
+
+    @staticmethod
+    def _infer_model(payload: dict[str, Any]) -> str | None:
+        huld_keys = {
+            "efficiency",
+            "c_temp_amb",
+            "c_temp_irrad",
+            "r_tamb",
+            "r_tmod",
+            "r_irradiance",
+            "k_1",
+            "k_2",
+            "k_3",
+            "k_4",
+            "k_5",
+            "k_6",
+        }
+        bofinger_keys = {
+            "threshold",
+            "area",
+            "rated_production",
+            "A",
+            "B",
+            "C",
+            "D",
+            "NOCT",
+            "Tstd",
+            "Tamb",
+            "Intc",
+            "ta",
+        }
+        payload_keys = set(payload.keys())
+        if huld_keys.issubset(payload_keys):
+            return "huld"
+        if bofinger_keys.issubset(payload_keys):
+            return "bofinger"
+        return None
+
+    @model_validator(mode="after")
+    def _validate_model_specific_fields(self) -> "SolarTechnologyConfig":
+        huld_required = [
+            "efficiency",
+            "c_temp_amb",
+            "c_temp_irrad",
+            "r_tamb",
+            "r_tmod",
+            "r_irradiance",
+            "k_1",
+            "k_2",
+            "k_3",
+            "k_4",
+            "k_5",
+            "k_6",
+        ]
+        bofinger_required = [
+            "threshold",
+            "area",
+            "rated_production",
+            "A",
+            "B",
+            "C",
+            "D",
+            "NOCT",
+            "Tstd",
+            "Tamb",
+            "Intc",
+            "ta",
+        ]
+
+        required_fields = huld_required if self.model == "huld" else bofinger_required
+        missing = [field for field in required_fields if getattr(self, field) is None]
+        if missing:
+            raise ValueError(
+                f"Solar model '{self.model}' is missing required field(s): "
+                + ", ".join(missing)
+            )
+        return self
 
     @classmethod
     def from_payload(
@@ -63,40 +195,19 @@ class SolarTechnologyConfig(BaseModel):
         *,
         default_name: str = "API_Custom_Solar",
     ) -> "SolarTechnologyConfig":
-        name = payload.get("name")
-        manufacturer = payload.get("manufacturer")
-        source = payload.get("source")
-        panel_parameters = payload.get("panel_parameters")
+        normalized: dict[str, object] = dict(payload)
+        normalized.setdefault("name", default_name)
+        return cls.model_validate(normalized)
 
-        if isinstance(panel_parameters, dict):
-            return cls(
-                name=str(name or default_name),
-                manufacturer=str(manufacturer) if manufacturer is not None else None,
-                source=str(source) if source is not None else None,
-                panel_parameters=panel_parameters,
-            )
-
-        # Support raw atlite-style YAML/JSON payloads without the wrapper key.
-        raw_parameters = {
+    def parameters(self) -> dict[str, Any]:
+        return {
             key: value
-            for key, value in payload.items()
+            for key, value in self.model_dump(exclude_none=True).items()
             if key not in {"name", "manufacturer", "source"}
         }
-        return cls(
-            name=str(name or default_name),
-            manufacturer=str(manufacturer) if manufacturer is not None else None,
-            source=str(source) if source is not None else None,
-            panel_parameters=raw_parameters,
-        )
 
     def to_atlite_panel(self) -> dict[str, object]:
-        payload = dict(self.panel_parameters)
-        payload.setdefault("name", self.name)
-        if self.manufacturer is not None:
-            payload.setdefault("manufacturer", self.manufacturer)
-        if self.source is not None:
-            payload.setdefault("source", self.source)
-        return payload
+        return self.model_dump(exclude_none=True)
 
 
 class GenerateProfilesRequest(BaseModel):

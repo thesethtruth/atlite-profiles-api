@@ -37,7 +37,24 @@ def test_generate_command_reads_config_files(tmp_path, monkeypatch):
     )
     solar_file = tmp_path / "solar.yaml"
     solar_file.write_text(
-        ("name: CLI_Solar\npanel_parameters:\n  A: 1.0\n  B: 2.0\n"),
+        (
+            "name: CLI_Solar\n"
+            "panel_parameters:\n"
+            "  model: huld\n"
+            "  efficiency: 0.1\n"
+            "  c_temp_amb: 1\n"
+            "  c_temp_irrad: 0.035\n"
+            "  r_tamb: 293\n"
+            "  r_tmod: 298\n"
+            "  r_irradiance: 1000\n"
+            "  k_1: -0.017162\n"
+            "  k_2: -0.040289\n"
+            "  k_3: -0.004681\n"
+            "  k_4: 0.000148\n"
+            "  k_5: 0.000169\n"
+            "  k_6: 0.000005\n"
+            "  inverter_efficiency: 0.9\n"
+        ),
         encoding="utf-8",
     )
     captured: dict[str, object] = {}

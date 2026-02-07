@@ -15,6 +15,8 @@ Default bind is `0.0.0.0:8000`.
 - `GET /health`
 - `GET /turbines`
 - `GET /turbines/{turbine_model}`
+- `GET /solar-technologies`
+- `GET /solar-technologies/{technology}`
 - `POST /generate`
 
 ### Example Request
@@ -64,3 +66,45 @@ When `turbine_config` is provided, the generator uses it instead of resolving `t
 - `rated_power_mw` (number > 0, optional)
 - `manufacturer` (string, optional)
 - `source` (string, optional)
+
+`POST /generate` also accepts optional `solar_technology_config` to run with an inline custom solar panel definition:
+
+```json
+{
+  "panel_model": "CSi",
+  "solar_technology_config": {
+    "model": "huld",
+    "name": "API_Custom_Solar",
+    "efficiency": 0.1,
+    "c_temp_amb": 1.0,
+    "c_temp_irrad": 0.035,
+    "r_tamb": 293.0,
+    "r_tmod": 298.0,
+    "r_irradiance": 1000.0,
+    "k_1": -0.017162,
+    "k_2": -0.040289,
+    "k_3": -0.004681,
+    "k_4": 0.000148,
+    "k_5": 0.000169,
+    "k_6": 0.000005,
+    "inverter_efficiency": 0.9,
+    "manufacturer": "ACME",
+    "source": "api"
+  }
+}
+```
+
+When `solar_technology_config` is provided, the generator uses it instead of resolving `panel_model` from the catalog.
+
+`solar_technology_config` fields:
+
+- `model` (string, required): either `huld` or `bofinger`
+- `name` (string, required)
+- `inverter_efficiency` (number, required)
+- `manufacturer` (string, optional)
+- `source` (string, optional)
+- model-specific coefficients:
+  - `huld`: `efficiency`, `c_temp_amb`, `c_temp_irrad`, `r_tamb`, `r_tmod`,
+    `r_irradiance`, `k_1..k_6`
+  - `bofinger`: `threshold`, `area`, `rated_production`, `A`, `B`, `C`, `D`,
+    `NOCT`, `Tstd`, `Tamb`, `Intc`, `ta`

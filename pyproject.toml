@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "atlite==0.2.14",
-    "fastapi==0.116.1",
+    "fastapi[standard]==0.116.1",
     "jupyter==1.1.1",
     "kaleido==0.2.1",
     "plotly==5.24.1",

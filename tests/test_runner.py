@@ -6,8 +6,11 @@ import pytest
 
 import service.runner as runner_module
 from service.runner import (
+    get_available_solar_technologies,
     get_available_turbines,
+    get_solar_catalog,
     get_turbine_catalog,
+    inspect_solar_technology,
     inspect_turbine,
     run_profiles,
 )
@@ -115,6 +118,57 @@ def test_run_profiles_accepts_turbine_config(monkeypatch):
     assert captured["turbine_config"].name == "API_Custom"
 
 
+def test_run_profiles_accepts_solar_technology_config(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class CaptureSolarConfig:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    fake_profile_module = types.SimpleNamespace(
+        ProfileConfig=DummyProfileConfig,
+        WindConfig=DummyWindConfig,
+        SolarConfig=CaptureSolarConfig,
+        ProfileGenerator=DummyGenerator,
+    )
+    monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
+
+    run_profiles(
+        profile_type="solar",
+        latitude=52.0,
+        longitude=5.0,
+        base_path=Path("/tmp"),
+        output_dir=Path("out"),
+        cutouts=["europe-2024-era5.nc"],
+        turbine_model="ModelA",
+        slopes=[30.0],
+        azimuths=[180.0],
+        panel_model="ignored-when-config-present",
+        solar_technology_config={
+            "model": "huld",
+            "name": "API_Solar",
+            "efficiency": 0.1,
+            "c_temp_amb": 1.0,
+            "c_temp_irrad": 0.035,
+            "r_tamb": 293.0,
+            "r_tmod": 298.0,
+            "r_irradiance": 1000.0,
+            "k_1": -0.017162,
+            "k_2": -0.040289,
+            "k_3": -0.004681,
+            "k_4": 0.000148,
+            "k_5": 0.000169,
+            "k_6": 0.000005,
+            "inverter_efficiency": 0.9,
+        },
+        visualize=False,
+    )
+
+    assert captured["panel_model"] == "ignored-when-config-present"
+    assert captured["panel_config"].name == "API_Solar"
+    assert captured["panel_config"].model == "huld"
+
+
 def test_configure_downstream_warning_filters(monkeypatch):
     captured: dict[str, object] = {}
 
@@ -153,6 +207,25 @@ def test_get_turbine_catalog_live_fetch_with_local_custom(tmp_path, monkeypatch)
     assert catalog == {"atlite": ["A", "B"], "custom_turbines": ["Z"]}
 
 
+def test_get_solar_catalog_live_fetch_with_local_custom(tmp_path, monkeypatch):
+    fake_atlite_resource = types.SimpleNamespace(solarpanels={"CdTe": "x", "CSi": "y"})
+    fake_atlite_module = types.SimpleNamespace(resource=fake_atlite_resource)
+    monkeypatch.setitem(sys.modules, "atlite", fake_atlite_module)
+    monkeypatch.setitem(sys.modules, "atlite.resource", fake_atlite_resource)
+
+    custom_dir = tmp_path / "config/solar"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "MyPanel.yaml").write_text("", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    catalog = get_solar_catalog()
+    assert catalog == {
+        "atlite": ["CSi", "CdTe"],
+        "custom_solar_technologies": ["MyPanel"],
+    }
+
+
 def test_get_turbine_catalog_handles_missing_custom_dir(monkeypatch, tmp_path):
     fake_atlite_resource = types.SimpleNamespace(windturbines={"A": "x"})
     fake_atlite_module = types.SimpleNamespace(resource=fake_atlite_resource)
@@ -162,6 +235,19 @@ def test_get_turbine_catalog_handles_missing_custom_dir(monkeypatch, tmp_path):
 
     catalog = get_turbine_catalog()
     assert catalog == {"atlite": ["A"], "custom_turbines": []}
+
+
+def test_get_available_solar_technologies_deduplicates(monkeypatch):
+    monkeypatch.setattr(
+        runner_module,
+        "get_solar_catalog",
+        lambda: {
+            "atlite": ["CSi", "CdTe"],
+            "custom_solar_technologies": ["CdTe", "MyPanel"],
+        },
+    )
+
+    assert get_available_solar_technologies() == ["CSi", "CdTe", "MyPanel"]
 
 
 def test_get_available_turbines_deduplicates(monkeypatch):
@@ -243,6 +329,43 @@ def test_inspect_turbine_infers_power_unit_once_for_full_curve(tmp_path, monkeyp
     # Inferred as kW for the full payload, so all POW values are scaled consistently.
     assert result["curve"][1] == {"speed": 10.0, "power_mw": 0.05}
     assert result["metadata"]["rated_power_mw"] == pytest.approx(5.6)
+
+
+def test_inspect_solar_technology_custom_yaml(tmp_path, monkeypatch):
+    custom_dir = tmp_path / "config/solar"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "DemoPanel.yaml").write_text(
+        (
+            "model: huld\n"
+            "name: DemoPanel\n"
+            "manufacturer: ACME\n"
+            "source: local\n"
+            "efficiency: 0.1\n"
+            "c_temp_amb: 1\n"
+            "c_temp_irrad: 0.035\n"
+            "r_tamb: 293\n"
+            "r_tmod: 298\n"
+            "r_irradiance: 1000\n"
+            "k_1: -0.017162\n"
+            "k_2: -0.040289\n"
+            "k_3: -0.004681\n"
+            "k_4: 0.000148\n"
+            "k_5: 0.000169\n"
+            "k_6: 0.000005\n"
+            "inverter_efficiency: 0.9\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(runner_module, "_fetch_atlite_solar_paths", lambda: {})
+
+    result = inspect_solar_technology("DemoPanel")
+
+    assert result["status"] == "ok"
+    assert result["metadata"]["provider"] == "custom"
+    assert result["metadata"]["definition_file"] == "config/solar/DemoPanel.yaml"
+    assert result["parameters"]["model"] == "huld"
+    assert result["parameters"]["efficiency"] == 0.1
 
 
 def test_inspect_turbine_not_found(monkeypatch, tmp_path):

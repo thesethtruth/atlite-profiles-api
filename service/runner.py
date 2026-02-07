@@ -244,7 +244,7 @@ def inspect_solar_technology(technology: str) -> SolarInspectPayload:
                 atlite_resource_kind="solarpanel",
             ),
         },
-        parameters=config.panel_parameters,
+        parameters=config.parameters(),
     )
     return response.model_dump()
 

@@ -14,7 +14,7 @@
 - `pyproject.toml` and `uv.lock`: Dependency and environment lock files.
 
 Keep domain logic in `core/`; keep `main.py` as a thin configuration and execution script.
-Keep business/runtime behavior shared through `service/runner.py` so CLI and API expose the same features without duplicate implementations.
+Keep business/runtime behavior shared through `service/runner.py` so CLI and API expose the same features without duplicate implementations. The goal is that the CLI and the API service remain feature par. 
 
 ## Build, Test, and Development Commands
 - `uv sync`: Create/update the virtual environment and install pinned dependencies.
