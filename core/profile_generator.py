@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Union, Literal
@@ -9,9 +10,12 @@ from .cutout_processing import (
     get_wind_profile,
     get_solar_profile,
     get_available_turbine_list,
-    get_turbine_data,
+    get_available_solar_technology_list,
 )
-from .models import WindTurbineConfig
+from .models import SolarTechnologyConfig, WindTurbineConfig
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProfileConfig(BaseModel):
@@ -90,7 +94,29 @@ class SolarConfig(BaseModel):
     slopes: List[float] = Field(default_factory=lambda: [30, 15, 15])
     azimuths: List[float] = Field(default_factory=lambda: [180, 90, 270])
     panel_model: str = "CSi"
+    panel_config: SolarTechnologyConfig | None = None
     output_subdir: str = "solar_profiles"
+
+    def model_post_init(self, context):
+        if self.panel_config is not None:
+            return
+
+        available_models = get_available_solar_technology_list()
+        if self.panel_model not in available_models:
+            raise ValueError(
+                f"Invalid panel model '{self.panel_model}'. "
+                f"Available models are: {available_models}"
+            )
+
+    def panel_name(self) -> str:
+        if self.panel_config is not None:
+            return self.panel_config.name
+        return self.panel_model
+
+    def atlite_panel(self) -> str | dict[str, object]:
+        if self.panel_config is not None:
+            return self.panel_config.to_atlite_panel()
+        return self.panel_model
 
 
 class ProfileGenerator:
@@ -131,17 +157,21 @@ class ProfileGenerator:
 
             # Check if file already exists
             if filepath.exists():
-                print(
-                    f"Wind profile for {cutout_year} already exists at {filepath}, loading existing file"
+                logger.info(
+                    "Wind profile for %s already exists at %s, loading existing file",
+                    cutout_year,
+                    filepath,
                 )
                 wind_profile = pd.read_csv(
                     filepath, index_col=0, parse_dates=True
                 ).squeeze()
                 profiles[profile_key] = wind_profile
-                print(f"Full load hours: {wind_profile.sum()}")
+                logger.info("Wind full load hours for %s: %s", cutout_year, wind_profile.sum())
             else:
-                print(
-                    f"Generating wind profile for {cutout_year} using {self.wind_config.turbine_name()}"
+                logger.info(
+                    "Generating wind profile for %s using %s",
+                    cutout_year,
+                    self.wind_config.turbine_name(),
                 )
 
                 wind_profile = get_wind_profile(
@@ -153,11 +183,11 @@ class ProfileGenerator:
 
                 profiles[profile_key] = wind_profile
 
-                print(f"Full load hours: {wind_profile.sum()}")
+                logger.info("Wind full load hours for %s: %s", cutout_year, wind_profile.sum())
 
                 # Save profile to file
                 wind_profile.to_csv(filepath)
-                print(f"Saved wind profile to {filepath}")
+                logger.info("Saved wind profile to %s", filepath)
 
         self.wind_profiles = profiles
         return profiles
@@ -179,17 +209,30 @@ class ProfileGenerator:
 
                 # Check if file already exists
                 if filepath.exists():
-                    print(
-                        f"Solar profile for {cutout_year} with slope={slope}, azimuth={azimuth} already exists at {filepath}, loading existing file"
+                    logger.info(
+                        "Solar profile for %s with slope=%s, azimuth=%s already exists at %s, loading existing file",
+                        cutout_year,
+                        slope,
+                        azimuth,
+                        filepath,
                     )
                     solar_profile = pd.read_csv(
                         filepath, index_col=0, parse_dates=True
                     ).squeeze()
                     profiles[profile_key] = solar_profile
-                    print(f"Full load hours: {solar_profile.sum()}")
+                    logger.info(
+                        "Solar full load hours for %s slope=%s azimuth=%s: %s",
+                        cutout_year,
+                        slope,
+                        azimuth,
+                        solar_profile.sum(),
+                    )
                 else:
-                    print(
-                        f"Generating solar profile for {cutout_year} with slope={slope}, azimuth={azimuth}"
+                    logger.info(
+                        "Generating solar profile for %s with slope=%s, azimuth=%s",
+                        cutout_year,
+                        slope,
+                        azimuth,
                     )
 
                     solar_profile = get_solar_profile(
@@ -198,16 +241,22 @@ class ProfileGenerator:
                         slope=slope,
                         azimuth=azimuth,
                         cutout_path=cutout_path,
-                        panel_model=self.solar_config.panel_model,
+                        panel_model=self.solar_config.atlite_panel(),
                     )
 
                     profiles[profile_key] = solar_profile
 
-                    print(f"Full load hours: {solar_profile.sum()}")
+                    logger.info(
+                        "Solar full load hours for %s slope=%s azimuth=%s: %s",
+                        cutout_year,
+                        slope,
+                        azimuth,
+                        solar_profile.sum(),
+                    )
 
                     # Save profile to file
                     solar_profile.to_csv(filepath)
-                    print(f"Saved solar profile to {filepath}")
+                    logger.info("Saved solar profile to %s", filepath)
 
         self.solar_profiles = profiles
         return profiles
@@ -215,7 +264,7 @@ class ProfileGenerator:
     def visualize_wind_profiles(self):
         """Visualize wind profiles."""
         if not self.wind_profiles:
-            print("No wind profiles to visualize. Generate profiles first.")
+            logger.warning("No wind profiles to visualize. Generate profiles first.")
             return
 
         # Create a DataFrame from all profiles
@@ -239,7 +288,7 @@ class ProfileGenerator:
             self._load_solar_profiles_from_files()
 
             if not self.solar_profiles:
-                print("No solar profiles to visualize. Generate profiles first.")
+                logger.warning("No solar profiles to visualize. Generate profiles first.")
                 return
 
         # Create a DataFrame for monthly aggregation

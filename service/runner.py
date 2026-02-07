@@ -1,10 +1,24 @@
+from __future__ import annotations
+
 import warnings
 from pathlib import Path
 
 import yaml
 
+from core.models import (
+    GenerateProfilesRequest,
+    GenerateProfilesResponse,
+    SolarCatalogResponse,
+    SolarInspectResponse,
+    SolarTechnologyConfig,
+    TurbineCatalogResponse,
+    TurbineInspectResponse,
+)
+
 TurbineCatalog = dict[str, list[str]]
 TurbineInspectPayload = dict[str, object]
+SolarCatalog = dict[str, list[str]]
+SolarInspectPayload = dict[str, object]
 
 
 def _configure_downstream_warning_filters() -> None:
@@ -18,11 +32,11 @@ def _configure_downstream_warning_filters() -> None:
 _configure_downstream_warning_filters()
 
 
-def _list_custom_turbines() -> list[str]:
-    custom_turbines_dir = Path("custom_turbines")
-    if not custom_turbines_dir.exists():
+def _list_local_yaml_names(directory: str) -> list[str]:
+    root = Path(directory)
+    if not root.exists():
         return []
-    return sorted({path.stem for path in custom_turbines_dir.glob("*.yaml")})
+    return sorted({path.stem for path in root.glob("*.yaml")})
 
 
 def _fetch_atlite_turbines() -> list[str]:
@@ -35,6 +49,18 @@ def _fetch_atlite_turbine_paths() -> dict[str, Path]:
     import atlite.resource
 
     return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
+
+
+def _fetch_atlite_solar_technologies() -> list[str]:
+    import atlite.resource
+
+    return sorted(set(atlite.resource.solarpanels.keys()))
+
+
+def _fetch_atlite_solar_paths() -> dict[str, Path]:
+    import atlite.resource
+
+    return {name: Path(path) for name, path in atlite.resource.solarpanels.items()}
 
 
 def _to_float(value: object) -> float | None:
@@ -50,27 +76,38 @@ def _value_to_mw(value: float) -> float:
     return value
 
 
-def _resolve_turbine_file(turbine_model: str) -> tuple[str, Path]:
-    custom_file = Path("custom_turbines") / f"{turbine_model}.yaml"
-    if custom_file.exists():
-        return "custom", custom_file
+def _resolve_technology_file(
+    technology: str,
+    *,
+    local_dir: str,
+    atlite_paths_fetcher,
+    not_found_label: str,
+) -> tuple[str, Path]:
+    local_file = Path(local_dir) / f"{technology}.yaml"
+    if local_file.exists():
+        return "custom", local_file
 
     try:
-        atlite_files = _fetch_atlite_turbine_paths()
+        atlite_files = atlite_paths_fetcher()
     except Exception:
         atlite_files = {}
-    atlite_file = atlite_files.get(turbine_model)
+
+    atlite_file = atlite_files.get(technology)
     if atlite_file is not None and atlite_file.exists():
         return "atlite", atlite_file
 
-    raise ValueError(f"Turbine '{turbine_model}' was not found.")
+    raise ValueError(f"{not_found_label} '{technology}' was not found.")
 
 
 def _display_definition_file(
-    *, source_kind: str, source_file: Path, turbine_model: str
+    *,
+    source_kind: str,
+    source_file: Path,
+    technology: str,
+    atlite_resource_kind: str,
 ) -> str:
     if source_kind == "atlite":
-        return f"atlite/{turbine_model}"
+        return f"atlite/resources/{atlite_resource_kind}/{technology}"
     try:
         return str(source_file.relative_to(Path.cwd()))
     except ValueError:
@@ -107,7 +144,12 @@ def _rated_power_mw(payload: dict[str, object]) -> float | None:
 
 
 def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
-    source_kind, source_file = _resolve_turbine_file(turbine_model)
+    source_kind, source_file = _resolve_technology_file(
+        turbine_model,
+        local_dir="custom_turbines",
+        atlite_paths_fetcher=_fetch_atlite_turbine_paths,
+        not_found_label="Turbine",
+    )
     with source_file.open(encoding="utf-8") as handle:
         payload = yaml.safe_load(handle)
     if not isinstance(payload, dict):
@@ -116,10 +158,10 @@ def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
     curve = _to_curve_points(payload)
     speeds = [point["speed"] for point in curve]
 
-    return {
-        "status": "ok",
-        "turbine": turbine_model,
-        "metadata": {
+    response = TurbineInspectResponse(
+        status="ok",
+        turbine=turbine_model,
+        metadata={
             "name": str(payload.get("name") or turbine_model),
             "manufacturer": str(payload.get("manufacturer") or "unknown"),
             "source": str(payload.get("source") or source_kind),
@@ -129,28 +171,77 @@ def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
             "definition_file": _display_definition_file(
                 source_kind=source_kind,
                 source_file=source_file,
-                turbine_model=turbine_model,
+                technology=turbine_model,
+                atlite_resource_kind="windturbine",
             ),
         },
-        "curve": curve,
-        "curve_summary": {
+        curve=curve,
+        curve_summary={
             "point_count": len(curve),
             "speed_min": min(speeds) if speeds else None,
             "speed_max": max(speeds) if speeds else None,
         },
-    }
+    )
+    return response.model_dump()
+
+
+def inspect_solar_technology(technology: str) -> SolarInspectPayload:
+    source_kind, source_file = _resolve_technology_file(
+        technology,
+        local_dir="custom_solar_technologies",
+        atlite_paths_fetcher=_fetch_atlite_solar_paths,
+        not_found_label="Solar technology",
+    )
+    with source_file.open(encoding="utf-8") as handle:
+        payload = yaml.safe_load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"Solar technology '{technology}' has an invalid definition file."
+        )
+
+    config = SolarTechnologyConfig.from_payload(payload, default_name=technology)
+    response = SolarInspectResponse(
+        status="ok",
+        technology=technology,
+        metadata={
+            "name": config.name,
+            "manufacturer": config.manufacturer or "unknown",
+            "source": config.source or source_kind,
+            "provider": source_kind,
+            "definition_file": _display_definition_file(
+                source_kind=source_kind,
+                source_file=source_file,
+                technology=technology,
+                atlite_resource_kind="solarpanel",
+            ),
+        },
+        parameters=config.panel_parameters,
+    )
+    return response.model_dump()
 
 
 def get_turbine_catalog() -> TurbineCatalog:
-    return {
-        "atlite": _fetch_atlite_turbines(),
-        "custom_turbines": _list_custom_turbines(),
-    }
+    return TurbineCatalogResponse(
+        atlite=_fetch_atlite_turbines(),
+        custom_turbines=_list_local_yaml_names("custom_turbines"),
+    ).model_dump()
+
+
+def get_solar_catalog() -> SolarCatalog:
+    return SolarCatalogResponse(
+        atlite=_fetch_atlite_solar_technologies(),
+        custom_solar_technologies=_list_local_yaml_names("custom_solar_technologies"),
+    ).model_dump()
 
 
 def get_available_turbines() -> list[str]:
     catalog = get_turbine_catalog()
     return sorted(set(catalog["atlite"] + catalog["custom_turbines"]))
+
+
+def get_available_solar_technologies() -> list[str]:
+    catalog = get_solar_catalog()
+    return sorted(set(catalog["atlite"] + catalog["custom_solar_technologies"]))
 
 
 def run_profiles(
@@ -166,6 +257,7 @@ def run_profiles(
     azimuths: list[float],
     panel_model: str,
     turbine_config: dict[str, object] | None = None,
+    solar_technology_config: dict[str, object] | None = None,
     visualize: bool = False,
 ) -> dict:
     from core.profile_generator import (
@@ -174,27 +266,40 @@ def run_profiles(
         SolarConfig,
         WindConfig,
     )
-    from core.models import WindTurbineConfig
+
+    request = GenerateProfilesRequest.model_validate(
+        {
+            "profile_type": profile_type,
+            "latitude": latitude,
+            "longitude": longitude,
+            "base_path": base_path,
+            "output_dir": output_dir,
+            "cutouts": cutouts,
+            "turbine_model": turbine_model,
+            "turbine_config": turbine_config,
+            "slopes": slopes,
+            "azimuths": azimuths,
+            "panel_model": panel_model,
+            "solar_technology_config": solar_technology_config,
+            "visualize": visualize,
+        }
+    )
 
     profile_config = ProfileConfig(
-        location={"lat": latitude, "lon": longitude},
-        base_path=base_path,
-        output_dir=output_dir,
-        cutouts=[Path(cutout) for cutout in cutouts],
-    )
-    parsed_turbine_config = (
-        WindTurbineConfig.model_validate(turbine_config)
-        if turbine_config is not None
-        else None
+        location={"lat": request.latitude, "lon": request.longitude},
+        base_path=request.base_path,
+        output_dir=request.output_dir,
+        cutouts=[Path(cutout) for cutout in request.cutouts],
     )
     wind_config = WindConfig(
-        turbine_model=turbine_model,
-        turbine_config=parsed_turbine_config,
+        turbine_model=request.turbine_model,
+        turbine_config=request.turbine_config,
     )
     solar_config = SolarConfig(
-        slopes=slopes,
-        azimuths=azimuths,
-        panel_model=panel_model,
+        slopes=request.slopes,
+        azimuths=request.azimuths,
+        panel_model=request.panel_model,
+        panel_config=request.solar_technology_config,
         output_subdir="solar_profiles",
     )
     generator = ProfileGenerator(
@@ -206,22 +311,23 @@ def run_profiles(
     wind_count = 0
     solar_count = 0
 
-    if profile_type in {"wind", "both"}:
+    if request.profile_type in {"wind", "both"}:
         wind_profiles = generator.generate_wind_profiles()
         wind_count = len(wind_profiles)
-        if visualize:
+        if request.visualize:
             generator.visualize_wind_profiles()
 
-    if profile_type in {"solar", "both"}:
+    if request.profile_type in {"solar", "both"}:
         solar_profiles = generator.generate_solar_profiles()
         solar_count = len(solar_profiles)
-        if visualize:
+        if request.visualize:
             generator.visualize_solar_profiles_monthly(color_key="azimuth")
 
-    return {
-        "status": "ok",
-        "profile_type": profile_type,
-        "wind_profiles": wind_count,
-        "solar_profiles": solar_count,
-        "output_dir": str(output_dir),
-    }
+    response = GenerateProfilesResponse(
+        status="ok",
+        profile_type=request.profile_type,
+        wind_profiles=wind_count,
+        solar_profiles=solar_count,
+        output_dir=str(request.output_dir),
+    )
+    return response.model_dump()

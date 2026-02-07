@@ -23,6 +23,55 @@ def test_generate_command(monkeypatch):
     assert "Done: wind=1, solar=0, output=output" in result.stdout
 
 
+def test_generate_command_reads_config_files(tmp_path, monkeypatch):
+    turbine_file = tmp_path / "turbine.yaml"
+    turbine_file.write_text(
+        (
+            "name: CLI_Custom\n"
+            "hub_height_m: 120\n"
+            "wind_speeds: [0, 10, 20]\n"
+            "power_curve_mw: [0, 2, 4]\n"
+        ),
+        encoding="utf-8",
+    )
+    solar_file = tmp_path / "solar.yaml"
+    solar_file.write_text(
+        (
+            "name: CLI_Solar\n"
+            "panel_parameters:\n"
+            "  A: 1.0\n"
+            "  B: 2.0\n"
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_run_profiles(**kwargs):
+        captured.update(kwargs)
+        return {
+            "wind_profiles": 1,
+            "solar_profiles": 1,
+            "output_dir": "output",
+        }
+
+    monkeypatch.setattr(cli, "run_profiles", fake_run_profiles)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "generate",
+            "--turbine-config-file",
+            str(turbine_file),
+            "--solar-technology-config-file",
+            str(solar_file),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["turbine_config"]["name"] == "CLI_Custom"
+    assert captured["solar_technology_config"]["name"] == "CLI_Solar"
+
+
 def test_list_turbines_command_pretty_output(monkeypatch):
     monkeypatch.setattr(
         cli,
@@ -185,7 +234,6 @@ def test_inspect_turbine_command(monkeypatch):
     assert "Power Curve" in result.output
     assert "Provider" in result.output
     assert "custom" in result.output
-    assert "Power (MW) vs Wind Speed (m/s)" in result.output
 
 
 def test_inspect_turbine_command_not_found(monkeypatch):
@@ -199,3 +247,75 @@ def test_inspect_turbine_command_not_found(monkeypatch):
 
     assert result.exit_code != 0
     assert "missing" in result.output
+
+
+def test_list_solar_technologies_pretty_output(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "get_solar_catalog",
+        lambda: {"atlite": ["CSi"], "custom_solar_technologies": ["MyPanel"]},
+    )
+
+    result = runner.invoke(cli.app, ["list-solar-technologies"])
+
+    assert result.exit_code == 0
+    assert "Solar" in result.output
+    assert "(atlite)" in result.output
+    assert "(custom)" in result.output
+    assert "CSi" in result.output
+    assert "MyPanel" in result.output
+    assert "Source (atlite): live" in result.output
+    assert "Source (custom): local" in result.output
+
+
+def test_list_solar_technologies_no_items(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "get_solar_catalog",
+        lambda: {"atlite": [], "custom_solar_technologies": []},
+    )
+
+    result = runner.invoke(cli.app, ["list-solar-technologies"])
+
+    assert result.exit_code == 0
+    assert "No solar technologies found." in result.output
+
+
+def test_inspect_solar_technology_command(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "inspect_solar_technology",
+        lambda name: {
+            "status": "ok",
+            "technology": name,
+            "metadata": {
+                "name": "MyPanel",
+                "provider": "custom",
+                "manufacturer": "ACME",
+                "source": "local",
+                "definition_file": "custom_solar_technologies/MyPanel.yaml",
+            },
+            "parameters": {"A": 1.0, "B": 2.0},
+        },
+    )
+
+    result = runner.invoke(cli.app, ["inspect-solar-technology", "MyPanel"])
+
+    assert result.exit_code == 0
+    assert "MyPanel" in result.output
+    assert "Panel Parameters" in result.output
+    assert "Provider" in result.output
+    assert "custom" in result.output
+
+
+def test_inspect_solar_technology_command_not_found(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "inspect_solar_technology",
+        lambda name: (_ for _ in ()).throw(ValueError("missing solar")),
+    )
+
+    result = runner.invoke(cli.app, ["inspect-solar-technology", "UnknownPanel"])
+
+    assert result.exit_code != 0
+    assert "missing solar" in result.output

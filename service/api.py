@@ -4,7 +4,10 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from core.models import WindTurbineConfig
+from service.logging_utils import configure_logging
 from service.runner import get_available_turbines, inspect_turbine, run_profiles
+
+configure_logging()
 
 app = FastAPI(
     title="Renewables Profiles API",

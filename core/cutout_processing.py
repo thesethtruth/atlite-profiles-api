@@ -3,8 +3,11 @@ import xarray as xr
 import atlite
 import numpy as np
 import pandas as pd
+import logging
 from pathlib import Path
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def get_wind_profile(
@@ -43,7 +46,7 @@ def get_wind_profile(
     nearest_x = sliced_cutout.data["x"].sel(x=lon, method="nearest")
     mask.loc[dict(x=nearest_x, y=nearest_y)] = 1
 
-    print(f"Calculating wind resource for turbine {turbine}")
+    logger.info("Calculating wind resource for turbine %s", turbine)
     wind_profile: pd.DataFrame = sliced_cutout.wind(
         turbine=turbine,
         layout=mask,
@@ -71,7 +74,7 @@ def get_solar_profile(
     slope: float = 30,
     azimuth: float = 180,
     cutout_path: Path = Path("data/europe-2023-era5.nc"),
-    panel_model: str = "CSi",
+    panel_model: str | dict[str, object] = "CSi",
 ) -> pd.Series:
     """
     Generate a solar generation profile for a given location and panel orientation.
@@ -143,6 +146,21 @@ def get_available_turbine_list():
     return available_turbines
 
 
+def get_available_solar_technology_list():
+    """
+    Get a list of pre-configured solar panel technologies including custom definitions.
+    """
+    solarpanels = atlite.resource.solarpanels
+    available_technologies = list(solarpanels.keys())
+
+    custom_dir = Path("custom_solar_technologies")
+    if custom_dir.exists():
+        for yaml_file in custom_dir.glob("*.yaml"):
+            available_technologies.append(yaml_file.stem)
+
+    return available_technologies
+
+
 def get_turbine_data(turbine_model: str):
     """Print the data for a specific turbine model.
     Parameters:
@@ -153,5 +171,15 @@ def get_turbine_data(turbine_model: str):
     fp: Path = windturbines[turbine_model]
     with open(fp) as f:
         data = yaml.safe_load(f)
-    print(data)
+    logger.info("Loaded turbine data for '%s'", turbine_model)
+    return data
+
+
+def get_solar_technology_data(technology: str):
+    """Print the data for a specific solar technology."""
+    solarpanels = atlite.resource.solarpanels
+    fp: Path = solarpanels[technology]
+    with open(fp) as f:
+        data = yaml.safe_load(f)
+    logger.info("Loaded solar technology data for '%s'", technology)
     return data

@@ -10,13 +10,18 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from service.logging_utils import configure_logging
 
 from service.runner import (
     _configure_downstream_warning_filters,
+    get_solar_catalog,
     get_turbine_catalog,
+    inspect_solar_technology,
     inspect_turbine,
     run_profiles,
 )
+
+configure_logging()
 
 app = typer.Typer(help="Generate renewable profiles from ERA5 cutouts.")
 console = Console()
@@ -118,6 +123,15 @@ def _atlite_turbine_files() -> dict[str, Path]:
     except Exception:
         return {}
     return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
+
+
+def _atlite_solar_files() -> dict[str, Path]:
+    try:
+        _configure_downstream_warning_filters()
+        import atlite.resource
+    except Exception:
+        return {}
+    return {name: Path(path) for name, path in atlite.resource.solarpanels.items()}
 
 
 def _render_power_curve_chart(
@@ -276,6 +290,32 @@ def _turbine_metadata_table(payload: dict[str, object]) -> Table:
     return table
 
 
+def _solar_metadata_table(payload: dict[str, object]) -> Table:
+    metadata = payload["metadata"]
+    table = Table.grid(padding=(0, 1))
+    table.add_column(style="bold cyan")
+    table.add_column()
+    table.add_row("Name", str(metadata["name"]))
+    table.add_row("Provider", str(metadata["provider"]))
+    table.add_row("Manufacturer", str(metadata["manufacturer"]))
+    table.add_row("Source", _source_document_text(metadata["source"]))
+    table.add_row("Definition", str(metadata["definition_file"]))
+    return table
+
+
+def _solar_parameters_table(payload: dict[str, object]) -> Table:
+    parameters = payload["parameters"]
+    table = Table(
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Parameter", overflow="fold")
+    table.add_column("Value", overflow="fold")
+    for key in sorted(parameters):
+        table.add_row(str(key), str(parameters[key]))
+    return table
+
+
 @app.command("generate")
 def generate(
     profile_type: Annotated[
@@ -298,6 +338,12 @@ def generate(
     turbine_model: Annotated[str, typer.Option(help="Wind turbine model name.")] = (
         "NREL_ReferenceTurbine_2020ATB_4MW"
     ),
+    turbine_config_file: Annotated[
+        Path | None,
+        typer.Option(
+            help="Path to a custom wind turbine config YAML file.",
+        ),
+    ] = None,
     slope: Annotated[
         list[float],
         typer.Option(help="Solar slope value(s). Repeat --slope for multiple."),
@@ -307,8 +353,44 @@ def generate(
         typer.Option(help="Solar azimuth value(s). Repeat --azimuth for multiple."),
     ] = [180.0],
     panel_model: Annotated[str, typer.Option(help="Solar panel model.")] = "CSi",
+    solar_technology_config_file: Annotated[
+        Path | None,
+        typer.Option(
+            help="Path to a custom solar technology config YAML file.",
+        ),
+    ] = None,
     visualize: Annotated[bool, typer.Option(help="Display plots.")] = False,
 ) -> None:
+    turbine_config: dict[str, object] | None = None
+    if turbine_config_file is not None:
+        try:
+            loaded = yaml.safe_load(turbine_config_file.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise typer.BadParameter(str(exc), param_hint="turbine-config-file")
+        if not isinstance(loaded, dict):
+            raise typer.BadParameter(
+                "Turbine config YAML must contain an object.",
+                param_hint="turbine-config-file",
+            )
+        turbine_config = loaded
+
+    solar_technology_config: dict[str, object] | None = None
+    if solar_technology_config_file is not None:
+        try:
+            loaded = yaml.safe_load(
+                solar_technology_config_file.read_text(encoding="utf-8")
+            )
+        except OSError as exc:
+            raise typer.BadParameter(
+                str(exc), param_hint="solar-technology-config-file"
+            )
+        if not isinstance(loaded, dict):
+            raise typer.BadParameter(
+                "Solar technology config YAML must contain an object.",
+                param_hint="solar-technology-config-file",
+            )
+        solar_technology_config = loaded
+
     result = run_profiles(
         profile_type=profile_type,
         latitude=latitude,
@@ -317,9 +399,11 @@ def generate(
         output_dir=output_dir,
         cutouts=cutout,
         turbine_model=turbine_model,
+        turbine_config=turbine_config,
         slopes=slope,
         azimuths=azimuth,
         panel_model=panel_model,
+        solar_technology_config=solar_technology_config,
         visualize=visualize,
     )
     typer.echo(
@@ -391,6 +475,44 @@ def list_turbines(
     console.print("[green]Source (custom):[/green] local")
 
 
+@app.command("list-solar-technologies")
+def list_solar_technologies() -> None:
+    catalog = get_solar_catalog()
+    atlite_technologies = catalog["atlite"]
+    custom_technologies = catalog["custom_solar_technologies"]
+
+    if len(atlite_technologies) + len(custom_technologies) == 0:
+        console.print("[yellow]No solar technologies found.[/yellow]")
+        return
+
+    atlite_table = Table(
+        title="Available Solar Technologies (atlite)",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    atlite_table.add_column("#", justify="right")
+    atlite_table.add_column("Technology", overflow="fold")
+    for index, technology in enumerate(sorted(atlite_technologies), start=1):
+        atlite_table.add_row(str(index), technology)
+    console.print()
+    console.print(atlite_table)
+    console.print("[green]Source (atlite):[/green] live")
+    console.print()
+
+    custom_table = Table(
+        title="Available Solar Technologies (custom)",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    custom_table.add_column("#", justify="right")
+    custom_table.add_column("Technology", overflow="fold")
+    for index, technology in enumerate(sorted(custom_technologies), start=1):
+        custom_table.add_row(str(index), technology)
+    console.print(custom_table)
+    console.print()
+    console.print("[green]Source (custom):[/green] local")
+
+
 @app.command("inspect-turbine")
 def inspect_turbine_command(
     turbine_model: Annotated[
@@ -413,6 +535,40 @@ def inspect_turbine_command(
     right_card = Panel(
         chart,
         title="Power Curve",
+        border_style="green",
+        expand=True,
+    )
+    console.print("\n")
+    console.print(
+        Columns(
+            [left_card, right_card],
+            equal=True,
+            expand=True,
+        )
+    )
+
+
+@app.command("inspect-solar-technology")
+def inspect_solar_technology_command(
+    technology: Annotated[
+        str, typer.Argument(help="Solar technology name to inspect.")
+    ],
+) -> None:
+    try:
+        payload = inspect_solar_technology(technology)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="technology")
+
+    metadata = payload["metadata"]
+    left_card = Panel(
+        _solar_metadata_table(payload),
+        title=str(metadata["name"]),
+        border_style="cyan",
+        expand=True,
+    )
+    right_card = Panel(
+        _solar_parameters_table(payload),
+        title="Panel Parameters",
         border_style="green",
         expand=True,
     )
