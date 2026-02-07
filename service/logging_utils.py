@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 
-
 _DEFAULT_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 

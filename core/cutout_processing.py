@@ -1,10 +1,11 @@
-import atlite.resource
-import xarray as xr
-import atlite
-import numpy as np
-import pandas as pd
 import logging
 from pathlib import Path
+
+import atlite
+import atlite.resource
+import numpy as np
+import pandas as pd
+import xarray as xr
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -16,21 +17,7 @@ def get_wind_profile(
     cutout_path: Path,
     turbine: str | dict[str, object],
 ):
-    """
-    Calculate the wind generation profile for a given location and turbine model.
-    Parameters:
-    lat (float): Latitude of the location.
-    lon (float): Longitude of the location.
-    cutout_path (Path, optional): Path to the cutout file. Defaults to "data/europe-2023-era5.nc".
-    turbine_model (str, optional): Turbine model to use for the wind profile calculation. Defaults to "NREL_ReferenceTurbine_2020ATB_15MW_offshore".
-    Returns:
-    pd.Series: A pandas Series containing the wind generation profile.
-    Notes:
-    - The function slices the cutout data around the given latitude and longitude.
-    - It creates a mask to locate the nearest grid point in the cutout data.
-    - The wind profile is calculated using the specified turbine model.
-    - If the resulting wind profile contains data for a leap day, it is removed.
-    """
+    """Generate wind profile time series for one location and turbine."""
 
     cutout = atlite.Cutout(cutout_path)
     lat_slice = slice(lat - 1.0, lat + 1.0)
@@ -76,23 +63,7 @@ def get_solar_profile(
     cutout_path: Path = Path("data/europe-2023-era5.nc"),
     panel_model: str | dict[str, object] = "CSi",
 ) -> pd.Series:
-    """
-    Generate a solar generation profile for a given location and panel orientation.
-    Parameters:
-    lat (float): Latitude of the location.
-    lon (float): Longitude of the location.
-    slope (float, optional): Slope of the solar panel in degrees. Default is 30.
-    azimuth (float, optional): Azimuth angle of the solar panel in degrees. Default is 180.
-    cutout_path (Path, optional): Path to the cutout data file. Default is "data/europe-2023-era5.nc".
-    panel_model (str, optional): Model of the solar panel. Default is "CSi".
-    Returns:
-    pandas.Series: A time series of solar generation values.
-    Notes:
-    - The function slices the cutout data around the specified latitude and longitude.
-    - It creates a mask for the nearest grid point to the specified location.
-    - The solar generation profile is calculated using the specified panel model and orientation.
-    - If the resulting time series includes a leap day, it is removed.
-    """
+    """Generate solar profile time series for one location and orientation."""
 
     cutout = atlite.Cutout(cutout_path)  # from RVO energiemix
     lat_slice = slice(lat - 0.5, lat + 0.5)

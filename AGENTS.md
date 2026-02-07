@@ -8,7 +8,8 @@
 - `service/api.py`: FastAPI application and API entrypoint.
 - `service/runner.py`: Shared execution layer used by CLI and API.
 - `tests/`: `pytest` suite for CLI, API, and shared runtime behavior.
-- `custom_turbines/*.yaml`: Custom turbine definitions loaded at runtime.
+- `config/wind/*.yaml`: Local wind technology definitions loaded at runtime.
+- `config/solar/*.yaml`: Local solar technology definitions loaded at runtime.
 - `README.md`: Usage and setup reference.
 - `pyproject.toml` and `uv.lock`: Dependency and environment lock files.
 
@@ -21,6 +22,8 @@ Keep business/runtime behavior shared through `service/runner.py` so CLI and API
 - `uv run profiles-cli --help`: Show CLI commands.
 - `uv run profiles-api`: Start the FastAPI server.
 - `uv run pytest`: Run the full automated test suite.
+- `uv run ruff check .`: Run Ruff lint checks (same as CI).
+- `uv run ruff format --check .`: Verify formatting (same as CI).
 - `uv run python -c "from core.cutout_processing import get_available_turbine_list; print(get_available_turbine_list())"`: Verify turbine models.
 
 ## Coding Style & Naming Conventions
@@ -36,6 +39,9 @@ If formatting/linting tools are introduced later, add them to `pyproject.toml` a
 - Use `pytest` and name files `tests/test_<area>.py`.
 - Prefer isolated tests with `monkeypatch` for CLI/API paths so tests do not require ERA5 datasets.
 - Run `uv run pytest` before handing off work.
+- For feature implementations, run CI-equivalent Ruff checks before handoff:
+  - `uv run ruff check .`
+  - `uv run ruff format --check .`
 
 ## Documentation & Workflow Rules
 - Keep `README.md` concise (quick start + pointers). Put detailed behavior, options, and examples in `/docs` and link from README.

@@ -1,9 +1,6 @@
-from pathlib import Path
-
 import pytest
 
-from core.profile_generator import WindConfig
-from core.profile_generator import SolarConfig
+from core.profile_generator import SolarConfig, WindConfig
 
 
 def test_wind_config_uses_custom_turbine_atlite_yaml(tmp_path, monkeypatch):

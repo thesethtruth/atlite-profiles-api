@@ -1,5 +1,5 @@
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -11,7 +11,6 @@ from rich.table import Table
 from rich.text import Text
 
 from service.logging_utils import configure_logging
-
 from service.runner import (
     _configure_downstream_warning_filters,
     get_solar_catalog,
@@ -310,7 +309,10 @@ def _turbine_metadata_table(payload: dict[str, object]) -> Table:
     table.add_row("Curve Points", str(curve_summary["point_count"]))
     table.add_row(
         "Speed Range",
-        f"{_format_number(_to_float(curve_summary['speed_min']), digits=1)} - {_format_number(_to_float(curve_summary['speed_max']), digits=1)} m/s",
+        (
+            f"{_format_number(_to_float(curve_summary['speed_min']), digits=1)} - "
+            f"{_format_number(_to_float(curve_summary['speed_max']), digits=1)} m/s"
+        ),
     )
     table.add_row("Definition", str(metadata["definition_file"]))
     return table
@@ -433,7 +435,10 @@ def generate(
         visualize=visualize,
     )
     typer.echo(
-        f"Done: wind={result['wind_profiles']}, solar={result['solar_profiles']}, output={result['output_dir']}"
+        "Done: "
+        f"wind={result['wind_profiles']}, "
+        f"solar={result['solar_profiles']}, "
+        f"output={result['output_dir']}"
     )
 
 

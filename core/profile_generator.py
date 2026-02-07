@@ -1,40 +1,26 @@
-import pandas as pd
-import numpy as np
-import plotly.express as px
 import logging
-import yaml
 from pathlib import Path
+from typing import Any, Dict, List, Literal
+
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import yaml
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Union, Literal, Any
 
 from .cutout_processing import (
-    get_wind_profile,
-    get_solar_profile,
-    get_available_turbine_list,
     get_available_solar_technology_list,
+    get_available_turbine_list,
+    get_solar_profile,
+    get_turbine_data,
+    get_wind_profile,
 )
 from .models import SolarTechnologyConfig, WindTurbineConfig
-
 
 logger = logging.getLogger(__name__)
 
 
 class ProfileConfig(BaseModel):
-    """
-    ProfileConfig defines the configuration parameters required for generating renewable energy profiles.
-
-    Attributes:
-        output_dir (Path): The directory where generated profiles and output files will be saved.
-        base_path (Path): The base directory path containing input data files.
-        cutouts (List[Path]): A list of file paths to weather cutout NetCDF files (e.g., ERA5 datasets) representing different years.
-            These files are used as input for profile generation. By default, includes cutouts from 1987, 2012, 2021, 2022, 2023, and 2024.
-        location (Dict[str, float]): A dictionary specifying the geographic location for profile generation, with keys 'lat' (latitude)
-            and 'lon' (longitude). Defaults to latitude 52.705 and longitude 4.770.
-
-    This configuration class is intended to be used as input to profile generation routines, ensuring all necessary paths and parameters
-    are specified in a structured and validated manner.
-    """
-
     """Base configuration for profile generation."""
 
     output_dir: Path
@@ -48,7 +34,9 @@ class ProfileConfig(BaseModel):
             Path("europe-2023-era5.nc"),
             Path("europe-2024-era5.nc"),
         ],
-        description="List of the cutouts (weather years) you want to generate data from",
+        description=(
+            "List of weather-year cutout files used as input for profile generation."
+        ),
     )
     location: Dict[str, float] = Field(
         default_factory=lambda: {"lat": 52.705, "lon": 4.770}
@@ -99,7 +87,8 @@ class WindConfig(BaseModel):
             raw = yaml.safe_load(handle)
         if not isinstance(raw, dict):
             raise ValueError(
-                f"Invalid custom turbine definition for '{self.turbine_model}': expected object YAML."
+                "Invalid custom turbine definition for "
+                f"'{self.turbine_model}': expected object YAML."
             )
         return self._normalize_custom_turbine_payload(raw)
 
@@ -132,7 +121,8 @@ class WindConfig(BaseModel):
             return config.to_atlite_turbine()
 
         raise ValueError(
-            f"Invalid custom turbine definition for '{self.turbine_model}': missing required turbine fields."
+            "Invalid custom turbine definition for "
+            f"'{self.turbine_model}': missing required turbine fields."
         )
 
 
@@ -177,7 +167,8 @@ class SolarConfig(BaseModel):
             raw = yaml.safe_load(handle)
         if not isinstance(raw, dict):
             raise ValueError(
-                f"Invalid custom solar definition for '{self.panel_model}': expected object YAML."
+                "Invalid custom solar definition for "
+                f"'{self.panel_model}': expected object YAML."
             )
         return self._normalize_custom_panel_payload(raw)
 
@@ -285,7 +276,8 @@ class ProfileGenerator:
                 # Check if file already exists
                 if filepath.exists():
                     logger.info(
-                        "Solar profile for %s with slope=%s, azimuth=%s already exists at %s, loading existing file",
+                        "Solar profile for %s with slope=%s, azimuth=%s "
+                        "already exists at %s, loading existing file",
                         cutout_year,
                         slope,
                         azimuth,

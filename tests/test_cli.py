@@ -1,8 +1,8 @@
-from typer.testing import CliRunner
 import re
 
-from service import cli
+from typer.testing import CliRunner
 
+from service import cli
 
 runner = CliRunner()
 
