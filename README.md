@@ -6,10 +6,13 @@ A Python tool for generating renewable energy profiles (wind and solar) from ERA
 
 - **Wind Profile Generation**: Generate capacity factor time series for various turbine models
 - **Solar Profile Generation**: Generate PV capacity factor time series with configurable panel orientations
-- **Multiple Weather Years**: Support for historical weather data (1987, 2012, 2021-2024)
-- **caching**: looks for the existing .csv file to avoid recomputing timeseries
+- **Multiple weather years**: Support for historical weather data (1987, 2012, 2021-2024)
+- **Caching**: Looks for the existing .csv file to avoid recomputing timeseries
 - **Visualization**: Built-in plotting capabilities for profile analysis
 - **Custom Turbines**: Support for custom turbine models via YAML configuration
+- **Typer CLI**: Command-line interface for generation and turbine discovery
+- **FastAPI service**: HTTP API for integration workflows
+- **Automated tests**: `pytest` suite for CLI/API and shared runner logic
 
 ## Setup
 
@@ -33,6 +36,16 @@ uv sync
 
 This will automatically create a virtual environment and install all required dependencies from the `pyproject.toml` file.
 
+3. (Optional, for development) install test dependencies:
+```bash
+uv sync --group dev
+```
+
+4. Install local hooks (recommended):
+```bash
+uv run pre-commit install
+```
+
 ## Required Data
 
 You need ERA5 weather data cutout files in NetCDF format. The default configuration expects files named:
@@ -43,7 +56,8 @@ You need ERA5 weather data cutout files in NetCDF format. The default configurat
 - `europe-2023-era5.nc`
 - `europe-2024-era5.nc`
 
-Update the `base_path` in your configuration to point to your data directory. For the energy system studies group these are located on our teams environment under `\Energiesysteemstudies\11. Algemene gedeelde bestanden\ERA5 Data`
+By default, the project looks for cutouts in the repository `data/` folder (`base_path=Path("data")`).
+`data/.gitkeep` is tracked, while data contents are ignored by git.
 
 ## Usage
 
@@ -58,13 +72,42 @@ LONGITUDE = 5.4186     # Your location longitude
 OUTPUT_DIR = "project_name"
 
 # Update data path
-base_path=Path("/path/to/your/data")
+base_path=Path("data")
 ```
 
 2. Run the generator:
 ```bash
 uv run python main.py
 ```
+
+### Typer CLI
+
+Run the CLI help:
+```bash
+uv run profiles-cli --help
+```
+
+Generate profiles via CLI:
+```bash
+uv run profiles-cli generate --profile-type both --base-path data --output-dir output --cutout europe-2024-era5.nc
+```
+
+List available turbines:
+```bash
+uv run profiles-cli list-turbines
+```
+
+### FastAPI Service
+
+Start the API server:
+```bash
+uv run profiles-api
+```
+
+Endpoints:
+- `GET /health`: Service status check
+- `GET /turbines`: Available turbine models
+- `POST /generate`: Trigger profile generation with request payload options
 
 ### Configuration Options
 
@@ -95,7 +138,7 @@ from pathlib import Path
 # Create custom configuration
 profile_config = ProfileConfig(
     location={"lat": 52.705, "lon": 4.770},
-    base_path=Path("/path/to/data"),
+    base_path=Path("data"),
     output_dir=Path("output"),
     cutouts=[Path("europe-2024-era5.nc")]  # Use specific years
 )
@@ -140,3 +183,35 @@ Add custom turbine models by placing YAML files in the `custom_turbines/` direct
 - plotly: Visualization
 - pydantic: Configuration validation
 - numpy: Numerical operations
+- typer: CLI
+- fastapi + uvicorn: API service
+
+## Testing
+
+Run all tests:
+```bash
+uv run pytest
+```
+
+The tests are designed to be lightweight and mock heavy generation paths, so they can run without local ERA5 cutout files.
+
+## Formatting
+
+Ruff is used for linting and formatting (Black-compatible formatting):
+
+```bash
+uv run ruff check . --fix
+uv run ruff format .
+uv run pre-commit run --all-files
+```
+
+## Documentation Policy
+
+Keep `README.md` as the quick-start guide. If detailed implementation notes or extended examples make the README too long, move them into a `/docs` folder and link from README.
+
+Documentation build (MkDocs Material):
+```bash
+uv run mkdocs build --strict
+```
+
+See `/docs` for detailed CLI/API guides.

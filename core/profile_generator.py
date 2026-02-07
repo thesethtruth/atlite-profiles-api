@@ -334,7 +334,7 @@ if __name__ == "__main__":
         # Create configurations
         profile_config = ProfileConfig(
             location={"lat": latitude, "lon": longitude},
-            base_path=Path("/mnt/c/Users/BERC2/Data"),
+            base_path=Path("data"),
             output_dir=Path(output_dir),
             cutouts=[
                 Path("europe-1987-era5.nc"),

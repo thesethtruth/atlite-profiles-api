@@ -1,0 +1,11 @@
+site_name: Renewables Profiles Generator
+site_description: Documentation for CLI, API, and profile generation workflows
+repo_name: renewables-profiles-generator
+
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - CLI: cli.md
+  - API: api.md

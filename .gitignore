@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local ERA5 cutout data (keep folder only)
+data/*
+!data/.gitkeep

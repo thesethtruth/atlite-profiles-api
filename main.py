@@ -34,7 +34,7 @@ PANEL_MODEL = "CSi"  # just leave this
 # base information
 profile_config = ProfileConfig(
     location={"lat": LATITUDE, "lon": LONGITUDE},
-    base_path=Path("/mnt/c/Users/BERC2/Data"),  # change this to your data path
+    base_path=Path("data"),  # change this to your data path
     output_dir=Path(OUTPUT_DIR),
     cutouts=[
         # Path("europe-1987-era5.nc"),
