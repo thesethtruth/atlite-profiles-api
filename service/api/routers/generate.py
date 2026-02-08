@@ -47,6 +47,11 @@ def _validate_cutout_coordinate_bounds(
         )
 
 
+def _resolve_cutout_paths(*, cutouts: list[str], catalog) -> list[str]:
+    by_name = {entry.name: entry.path for entry in catalog.cutout_entries}
+    return [by_name.get(cutout, cutout) for cutout in cutouts]
+
+
 @router.post(
     "/generate",
     response_model=GenerateProfilesResponse,
@@ -92,6 +97,10 @@ def generate(
         cutouts=request_payload.cutouts,
         catalog=catalog,
     )
+    resolved_cutouts = _resolve_cutout_paths(
+        cutouts=request_payload.cutouts,
+        catalog=catalog,
+    )
 
     response_payload = run_profiles(
         profile_type=request_payload.profile_type,
@@ -99,7 +108,7 @@ def generate(
         longitude=request_payload.longitude,
         base_path=request_payload.base_path,
         output_dir=request_payload.output_dir,
-        cutouts=request_payload.cutouts,
+        cutouts=resolved_cutouts,
         turbine_model=request_payload.turbine_model,
         turbine_config=(
             request_payload.turbine_config.model_dump()

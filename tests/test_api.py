@@ -131,6 +131,12 @@ def test_generate_endpoint(monkeypatch):
             available_turbines=[],
             available_solar_technologies=[],
             available_cutouts=["europe-2024-era5.nc"],
+            cutout_entries=[
+                CutoutCatalogEntry(
+                    name="europe-2024-era5.nc",
+                    path="/data/europe-2024-era5.nc",
+                )
+            ],
         ),
     )
 
@@ -186,6 +192,7 @@ def test_generate_endpoint(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert captured["cutouts"] == ["/data/europe-2024-era5.nc"]
     assert captured["turbine_config"]["name"] == "API_Custom"
     assert captured["solar_technology_config"]["name"] == "API_Solar"
     assert captured["solar_technology_config"]["model"] == "huld"
