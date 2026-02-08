@@ -9,18 +9,18 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "atlite==0.2.14",
+    "atlite>=0.2.14",
     "cdsapi>=0.7.6",
-    "fastapi[standard]==0.116.1",
-    "jupyter==1.1.1",
-    "kaleido==0.2.1",
-    "plotly==5.24.1",
+    "fastapi[standard]>=0.116.1",
+    "jupyter>=1.1.1",
+    "kaleido>=0.2.1",
+    "plotly>=5.24.1",
     "pydantic>=2.11.7",
-    "pypsa==0.32.0",
-    "rich==14.1.0",
-    "seaborn==0.13.2",
-    "typer==0.16.1",
-    "uvicorn==0.35.0",
+    "pypsa>=0.32.0",
+    "rich>=14.1.0",
+    "seaborn>=0.13.2",
+    "typer>=0.16.1",
+    "uvicorn>=0.35.0",
 ]
 
 [dependency-groups]
