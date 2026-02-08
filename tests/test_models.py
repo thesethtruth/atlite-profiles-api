@@ -1,6 +1,6 @@
 import pytest
 
-from core.models import SolarTechnologyConfig, WindTurbineConfig
+from core.models import CutoutFetchConfig, SolarTechnologyConfig, WindTurbineConfig
 
 
 def test_wind_turbine_config_to_atlite_turbine():
@@ -95,4 +95,47 @@ def test_solar_technology_config_rejects_missing_model_specific_fields():
             model="bofinger",
             name="Kaneka",
             inverter_efficiency=0.9,
+        )
+
+
+def test_cutout_fetch_config_validates_required_cutout_fields():
+    config = CutoutFetchConfig.model_validate(
+        {
+            "cutouts": [
+                {
+                    "filename": "europe-2024-era5.nc",
+                    "target": "data",
+                    "cutout": {
+                        "module": "era5",
+                        "x": [2.5, 7.5],
+                        "y": [50.5, 54.0],
+                        "time": "2024",
+                    },
+                    "prepare": {
+                        "features": ["height", "wind", "influx", "temperature"],
+                    },
+                }
+            ]
+        }
+    )
+
+    assert config.cutouts[0].filename == "europe-2024-era5.nc"
+    assert config.cutouts[0].target == "data"
+
+
+def test_cutout_fetch_config_rejects_missing_cutout_fields():
+    with pytest.raises(ValueError, match="missing required field"):
+        CutoutFetchConfig.model_validate(
+            {
+                "cutouts": [
+                    {
+                        "filename": "europe-2024-era5.nc",
+                        "target": "data",
+                        "cutout": {
+                            "module": "era5",
+                            "x": [2.5, 7.5],
+                        },
+                    }
+                ]
+            }
         )

@@ -6,6 +6,7 @@ A wrapper around [atlite](https://github.com/PyPSA/atlite) which exposes a CLI a
 
 - Wind and solar profile generation from ERA5 NetCDF cutouts
 - Typer CLI for local runs and turbine discovery
+- Cutout fetch/preparation via CLI (`profiles-cli fetch-cutouts`)
 - Turbine inspection via `profiles-cli inspect-turbine`
 - FastAPI service for API-based execution
 - Optional inline API `turbine_config` for custom wind curves

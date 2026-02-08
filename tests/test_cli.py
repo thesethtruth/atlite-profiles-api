@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from typer.testing import CliRunner
 
@@ -83,6 +84,73 @@ def test_generate_command_reads_config_files(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert captured["turbine_config"]["name"] == "CLI_Custom"
     assert captured["solar_technology_config"]["name"] == "CLI_Solar"
+
+
+def test_fetch_cutouts_command_with_config_file(monkeypatch, tmp_path):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text("cutouts: []\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_fetch_cutouts(*, config_file: Path, force_refresh: bool):
+        captured["config_file"] = config_file
+        captured["force_refresh"] = force_refresh
+        return {
+            "fetched_count": 1,
+            "skipped_count": 0,
+        }
+
+    monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
+
+    result = runner.invoke(
+        cli.app,
+        ["fetch-cutouts", "--config-file", str(config_file)],
+    )
+
+    assert result.exit_code == 0
+    assert captured["config_file"] == config_file
+    assert captured["force_refresh"] is False
+    assert "Done: fetched=1, skipped=0" in result.stdout
+
+
+def test_fetch_cutouts_command_with_all_uses_default(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_fetch_cutouts(*, config_file: Path, force_refresh: bool):
+        captured["config_file"] = config_file
+        captured["force_refresh"] = force_refresh
+        return {
+            "fetched_count": 0,
+            "skipped_count": 2,
+        }
+
+    monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
+
+    result = runner.invoke(cli.app, ["fetch-cutouts", "--all", "--force-refresh"])
+
+    assert result.exit_code == 0
+    assert captured["config_file"] == Path("config/cutouts.yaml")
+    assert captured["force_refresh"] is True
+    assert "Done: fetched=0, skipped=2" in result.stdout
+
+
+def test_fetch_cutouts_command_requires_config_or_all():
+    result = runner.invoke(cli.app, ["fetch-cutouts"])
+
+    assert result.exit_code != 0
+    assert "Provide --config-file or use --all." in result.output
+
+
+def test_fetch_cutouts_command_rejects_both_config_and_all(tmp_path):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text("cutouts: []\n", encoding="utf-8")
+
+    result = runner.invoke(
+        cli.app,
+        ["fetch-cutouts", "--config-file", str(config_file), "--all"],
+    )
+
+    assert result.exit_code != 0
+    assert "Use either --config-file or --all, not both." in result.output
 
 
 def test_list_turbines_command_pretty_output(monkeypatch):

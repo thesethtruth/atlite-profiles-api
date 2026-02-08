@@ -13,6 +13,7 @@ from rich.text import Text
 from service.logging_utils import configure_logging
 from service.runner import (
     _configure_downstream_warning_filters,
+    fetch_cutouts,
     get_solar_catalog,
     get_turbine_catalog,
     inspect_solar_technology,
@@ -610,6 +611,59 @@ def inspect_solar_technology_command(
             equal=True,
             expand=True,
         )
+    )
+
+
+@app.command("fetch-cutouts")
+def fetch_cutouts_command(
+    config_file: Annotated[
+        Path | None,
+        typer.Option(
+            help="Path to a cutout-fetch config YAML (expects a top-level 'cutouts')."
+        ),
+    ] = None,
+    all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="Use config/cutouts.yaml and process all configured cutouts.",
+        ),
+    ] = False,
+    force_refresh: Annotated[
+        bool,
+        typer.Option(
+            help="Regenerate and overwrite existing cutouts (and re-upload for remote)."
+        ),
+    ] = False,
+) -> None:
+    if config_file is None and not all:
+        raise typer.BadParameter(
+            "Provide --config-file or use --all.",
+            param_hint="config-file",
+        )
+    if config_file is not None and all:
+        raise typer.BadParameter(
+            "Use either --config-file or --all, not both.",
+            param_hint="all",
+        )
+
+    if config_file is not None:
+        resolved_config = config_file
+    else:
+        resolved_config = Path("config/cutouts.yaml")
+    try:
+        result = fetch_cutouts(
+            config_file=resolved_config,
+            force_refresh=force_refresh,
+        )
+    except (OSError, ValueError) as exc:
+        raise typer.BadParameter(str(exc), param_hint="config-file")
+
+    typer.echo(
+        "Done: "
+        f"fetched={result['fetched_count']}, "
+        f"skipped={result['skipped_count']}, "
+        f"config={resolved_config}"
     )
 
 

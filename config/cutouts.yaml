@@ -1,0 +1,10 @@
+cutouts:
+  - filename: europe-2012-era5.nc
+    target: data
+    cutout:
+      module: era5
+      x: [2.5, 7.5]
+      y: [50.5, 54.0]
+      time: "2012"
+    prepare:
+      features: [height, wind, influx, temperature]

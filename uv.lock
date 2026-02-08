@@ -2859,6 +2859,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "atlite" },
+    { name = "cdsapi" },
     { name = "fastapi", extra = ["standard"] },
     { name = "jupyter" },
     { name = "kaleido" },
@@ -2884,6 +2885,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "atlite", specifier = "==0.2.14" },
+    { name = "cdsapi", specifier = ">=0.7.6" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.116.1" },
     { name = "jupyter", specifier = "==1.1.1" },
     { name = "kaleido", specifier = "==0.2.1" },

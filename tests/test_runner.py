@@ -6,6 +6,7 @@ import pytest
 
 import service.runner as runner_module
 from service.runner import (
+    fetch_cutouts,
     get_available_solar_technologies,
     get_available_turbines,
     get_solar_catalog,
@@ -258,6 +259,151 @@ def test_get_available_turbines_deduplicates(monkeypatch):
     )
 
     assert get_available_turbines() == ["A", "B", "Z"]
+
+
+def test_fetch_cutouts_prepares_local_file(tmp_path, monkeypatch):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text(
+        (
+            "cutouts:\n"
+            "  - filename: local.nc\n"
+            "    target: data\n"
+            "    cutout:\n"
+            "      module: era5\n"
+            "      x: [1.0, 2.0]\n"
+            "      y: [3.0, 4.0]\n"
+            "      time: '2024'\n"
+            "    prepare:\n"
+            "      features: [height, wind, influx, temperature]\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    calls: list[dict[str, object]] = []
+
+    class DummyCutout:
+        def __init__(self, **kwargs):
+            calls.append({"kwargs": kwargs})
+            self.path = Path(kwargs["path"])
+
+        def prepare(self, **kwargs):
+            calls[-1]["prepare"] = kwargs
+            self.path.write_text("ok", encoding="utf-8")
+
+    monkeypatch.setitem(
+        sys.modules, "atlite", types.SimpleNamespace(Cutout=DummyCutout)
+    )
+
+    result = fetch_cutouts(config_file=config_file, force_refresh=False)
+
+    assert result["fetched_count"] == 1
+    assert result["skipped_count"] == 0
+    assert (tmp_path / "data/local.nc").exists()
+    assert calls[0]["kwargs"]["module"] == "era5"
+    assert isinstance(calls[0]["kwargs"]["x"], slice)
+    assert isinstance(calls[0]["kwargs"]["y"], slice)
+    assert calls[0]["prepare"]["features"] == [
+        "height",
+        "wind",
+        "influx",
+        "temperature",
+    ]
+
+
+def test_fetch_cutouts_skips_existing_unless_force_refresh(tmp_path, monkeypatch):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text(
+        (
+            "cutouts:\n"
+            "  - filename: existing.nc\n"
+            "    target: data\n"
+            "    cutout:\n"
+            "      module: era5\n"
+            "      x: [1.0, 2.0]\n"
+            "      y: [3.0, 4.0]\n"
+            "      time: '2024'\n"
+            "    prepare: {}\n"
+        ),
+        encoding="utf-8",
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    existing_file = data_dir / "existing.nc"
+    existing_file.write_text("old", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    call_count = {"count": 0}
+
+    class DummyCutout:
+        def __init__(self, **kwargs):
+            self.path = Path(kwargs["path"])
+
+        def prepare(self, **kwargs):
+            call_count["count"] += 1
+            self.path.write_text("new", encoding="utf-8")
+
+    monkeypatch.setitem(
+        sys.modules, "atlite", types.SimpleNamespace(Cutout=DummyCutout)
+    )
+
+    skipped = fetch_cutouts(config_file=config_file, force_refresh=False)
+    refreshed = fetch_cutouts(config_file=config_file, force_refresh=True)
+
+    assert skipped["fetched_count"] == 0
+    assert skipped["skipped_count"] == 1
+    assert refreshed["fetched_count"] == 1
+    assert refreshed["skipped_count"] == 0
+    assert call_count["count"] == 1
+    assert existing_file.read_text(encoding="utf-8") == "new"
+
+
+def test_fetch_cutouts_remote_target_uses_scp(tmp_path, monkeypatch):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text(
+        (
+            "cutouts:\n"
+            "  - filename: remote.nc\n"
+            "    target: user@example.org:/srv/cutouts\n"
+            "    cutout:\n"
+            "      module: era5\n"
+            "      x: [1.0, 2.0]\n"
+            "      y: [3.0, 4.0]\n"
+            "      time: '2024'\n"
+            "    prepare: {}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    class DummyCutout:
+        def __init__(self, **kwargs):
+            self.path = Path(kwargs["path"])
+
+        def prepare(self, **kwargs):
+            self.path.write_text("remote", encoding="utf-8")
+
+    commands: list[list[str]] = []
+
+    class DummyCompleted:
+        def __init__(self, returncode: int):
+            self.returncode = returncode
+
+    def fake_run(cmd, **kwargs):
+        commands.append(cmd)
+        if cmd[:2] == ["ssh", "user@example.org"] and "test -f" in cmd[2]:
+            return DummyCompleted(returncode=1)
+        return DummyCompleted(returncode=0)
+
+    monkeypatch.setitem(
+        sys.modules, "atlite", types.SimpleNamespace(Cutout=DummyCutout)
+    )
+    monkeypatch.setattr(runner_module.subprocess, "run", fake_run)
+
+    result = fetch_cutouts(config_file=config_file, force_refresh=False)
+
+    assert result["fetched_count"] == 1
+    assert result["skipped_count"] == 0
+    assert any(cmd[0] == "scp" for cmd in commands)
 
 
 def test_inspect_turbine_custom_yaml(tmp_path, monkeypatch):

@@ -242,6 +242,27 @@ class GenerateProfilesResponse(BaseModel):
     output_dir: str
 
 
+class CutoutFetchConfigEntry(BaseModel):
+    filename: str = Field(min_length=1)
+    target: str = Field(min_length=1)
+    cutout: dict[str, Any] = Field(default_factory=dict)
+    prepare: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_cutout_payload(self) -> "CutoutFetchConfigEntry":
+        required = {"module", "x", "y", "time"}
+        missing = [key for key in required if key not in self.cutout]
+        if missing:
+            raise ValueError(
+                "cutout payload is missing required field(s): " + ", ".join(missing)
+            )
+        return self
+
+
+class CutoutFetchConfig(BaseModel):
+    cutouts: list[CutoutFetchConfigEntry] = Field(min_length=1)
+
+
 class ListItemsResponse(BaseModel):
     items: list[str]
 

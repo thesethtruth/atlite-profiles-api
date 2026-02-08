@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import os
+import shlex
+import subprocess
+import tempfile
 import warnings
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 from core.models import (
+    CutoutFetchConfig,
+    CutoutFetchConfigEntry,
     GenerateProfilesRequest,
     GenerateProfilesResponse,
     SolarCatalogResponse,
@@ -271,6 +278,138 @@ def get_available_turbines() -> list[str]:
 def get_available_solar_technologies() -> list[str]:
     catalog = get_solar_catalog()
     return sorted(set(catalog["atlite"] + catalog["custom_solar_technologies"]))
+
+
+def _apply_cdsapi_env_fallback() -> None:
+    if not os.environ.get("CDSAPI_KEY"):
+        fallback_key = os.environ.get("CDS_KEY")
+        if fallback_key:
+            os.environ["CDSAPI_KEY"] = fallback_key
+    if not os.environ.get("CDSAPI_URL"):
+        fallback_url = os.environ.get("CDS_URL")
+        if fallback_url:
+            os.environ["CDSAPI_URL"] = fallback_url
+
+
+def _normalize_slice(value: object, *, axis: str) -> slice:
+    if isinstance(value, slice):
+        return value
+    if isinstance(value, list) and len(value) == 2:
+        return slice(value[0], value[1])
+    raise ValueError(f"cutout.{axis} must be a [start, stop] list.")
+
+
+def _is_remote_target(target: str) -> bool:
+    if len(target) < 3:
+        return False
+    if target[1:3] == ":\\":
+        return False
+    return ":" in target
+
+
+def _resolve_target_path(target: str, filename: str) -> str:
+    return f"{target.rstrip('/')}/{filename}"
+
+
+def _remote_target_parts(target: str) -> tuple[str, str]:
+    host, remote_dir = target.split(":", 1)
+    if len(host) == 0 or len(remote_dir) == 0:
+        raise ValueError(f"Invalid remote target '{target}'.")
+    return host, remote_dir
+
+
+def _remote_file_exists(target: str, filename: str) -> bool:
+    host, remote_dir = _remote_target_parts(target)
+    remote_file = _resolve_target_path(remote_dir, filename)
+    result = subprocess.run(
+        ["ssh", host, f"test -f {shlex.quote(remote_file)}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def _copy_to_remote_target(local_file: Path, target: str, filename: str) -> str:
+    host, remote_dir = _remote_target_parts(target)
+    subprocess.run(
+        ["ssh", host, f"mkdir -p {shlex.quote(remote_dir)}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    remote_file = _resolve_target_path(remote_dir, filename)
+    destination = f"{host}:{remote_file}"
+    subprocess.run(
+        ["scp", str(local_file), destination],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return destination
+
+
+def _build_cutout_kwargs(
+    entry: CutoutFetchConfigEntry, *, cutout_file: Path
+) -> dict[str, Any]:
+    cutout_kwargs = dict(entry.cutout)
+    cutout_kwargs["path"] = cutout_file
+    cutout_kwargs["x"] = _normalize_slice(cutout_kwargs["x"], axis="x")
+    cutout_kwargs["y"] = _normalize_slice(cutout_kwargs["y"], axis="y")
+    return cutout_kwargs
+
+
+def fetch_cutouts(*, config_file: Path, force_refresh: bool = False) -> dict[str, Any]:
+    import atlite
+
+    _apply_cdsapi_env_fallback()
+    payload = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    config = CutoutFetchConfig.model_validate(payload)
+
+    fetched: list[str] = []
+    skipped: list[str] = []
+
+    for entry in config.cutouts:
+        filename = entry.filename
+        target = entry.target
+        is_remote = _is_remote_target(target)
+
+        destination = _resolve_target_path(target, filename)
+        exists = (
+            _remote_file_exists(target, filename)
+            if is_remote
+            else (Path(target) / filename).exists()
+        )
+        if exists and not force_refresh:
+            skipped.append(destination)
+            continue
+
+        if is_remote:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                local_file = Path(tmp_dir) / filename
+                cutout_kwargs = _build_cutout_kwargs(entry, cutout_file=local_file)
+                cutout = atlite.Cutout(**cutout_kwargs)
+                cutout.prepare(**dict(entry.prepare))
+                fetched.append(_copy_to_remote_target(local_file, target, filename))
+            continue
+
+        local_dir = Path(target)
+        local_dir.mkdir(parents=True, exist_ok=True)
+        local_file = local_dir / filename
+        if force_refresh and local_file.exists():
+            local_file.unlink()
+        cutout_kwargs = _build_cutout_kwargs(entry, cutout_file=local_file)
+        cutout = atlite.Cutout(**cutout_kwargs)
+        cutout.prepare(**dict(entry.prepare))
+        fetched.append(str(local_file))
+
+    return {
+        "status": "ok",
+        "fetched": fetched,
+        "skipped": skipped,
+        "fetched_count": len(fetched),
+        "skipped_count": len(skipped),
+    }
 
 
 def run_profiles(

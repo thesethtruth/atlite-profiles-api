@@ -14,6 +14,8 @@ uv run profiles-cli list-solar-technologies
 uv run profiles-cli generate --profile-type both --base-path data --output-dir output --cutout europe-2024-era5.nc
 uv run profiles-cli inspect-turbine Vestas_V162_5.6
 uv run profiles-cli inspect-solar-technology CSi
+uv run profiles-cli fetch-cutouts --all
+uv run profiles-cli fetch-cutouts --config-file config/cutouts.yaml --force-refresh
 ```
 
 ## Notes
@@ -29,4 +31,11 @@ uv run profiles-cli inspect-solar-technology CSi
 - For custom solar technologies, `Definition` shows a workspace-relative path (for example `config/solar/MyPanel.yaml`).
 - `generate` supports `--turbine-config-file` and `--solar-technology-config-file` to load local YAML definitions.
 - `Source` is shown with a 40-character display label and `...` when trimmed; URL sources are clickable links in Rich-capable terminals.
+- `fetch-cutouts` requires either `--config-file` or `--all` (uses `config/cutouts.yaml`).
+- Existing targets are skipped by default; pass `--force-refresh` to rebuild/re-upload.
+- `config/cutouts.yaml` entries include:
+  - `filename`: output `.nc` filename.
+  - `target`: local directory or remote SCP target (`user@host:/path`).
+  - `cutout`: kwargs for `atlite.Cutout(...)` (for example `module`, `x`, `y`, `time`).
+  - `prepare`: kwargs for `cutout.prepare(...)` (for example `features`, `compression`).
 - API returns the same payload at `GET /turbines/{turbine_model}`.
