@@ -243,6 +243,7 @@ class GenerateProfilesResponse(BaseModel):
 
 
 class CutoutFetchConfigEntry(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
     filename: str = Field(min_length=1)
     target: str = Field(min_length=1)
     cutout: dict[str, Any] = Field(default_factory=dict)

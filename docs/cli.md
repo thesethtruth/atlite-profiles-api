@@ -16,6 +16,8 @@ uv run profiles-cli inspect-turbine Vestas_V162_5.6
 uv run profiles-cli inspect-solar-technology CSi
 uv run profiles-cli fetch-cutouts --all
 uv run profiles-cli fetch-cutouts --config-file config/cutouts.yaml --force-refresh
+uv run profiles-cli fetch-cutouts --config-file config/cutouts.yaml --name nl-2012
+uv run profiles-cli fetch-cutouts --all --report-validate-existing
 ```
 
 ## Notes
@@ -32,8 +34,11 @@ uv run profiles-cli fetch-cutouts --config-file config/cutouts.yaml --force-refr
 - `generate` supports `--turbine-config-file` and `--solar-technology-config-file` to load local YAML definitions.
 - `Source` is shown with a 40-character display label and `...` when trimmed; URL sources are clickable links in Rich-capable terminals.
 - `fetch-cutouts` requires either `--config-file` or `--all` (uses `config/cutouts.yaml`).
+- Use `--name <key>` to only process one configured cutout entry by its YAML `name`.
 - Existing targets are skipped by default; pass `--force-refresh` to rebuild/re-upload.
+- Use `--report-validate-existing` to inspect local existing `.nc` files and print a compatibility summary against the configured `cutout`/`prepare` fields.
 - `config/cutouts.yaml` entries include:
+  - `name`: optional unique key used by `--name`.
   - `filename`: output `.nc` filename.
   - `target`: local directory or remote SCP target (`user@host:/path`).
   - `cutout`: kwargs for `atlite.Cutout(...)` (for example `module`, `x`, `y`, `time`).

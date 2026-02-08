@@ -91,12 +91,21 @@ def test_fetch_cutouts_command_with_config_file(monkeypatch, tmp_path):
     config_file.write_text("cutouts: []\n", encoding="utf-8")
     captured: dict[str, object] = {}
 
-    def fake_fetch_cutouts(*, config_file: Path, force_refresh: bool):
+    def fake_fetch_cutouts(
+        *,
+        config_file: Path,
+        force_refresh: bool,
+        name: str | None,
+        report_validate_existing: bool,
+    ):
         captured["config_file"] = config_file
         captured["force_refresh"] = force_refresh
+        captured["name"] = name
+        captured["report_validate_existing"] = report_validate_existing
         return {
             "fetched_count": 1,
             "skipped_count": 0,
+            "validation_report": None,
         }
 
     monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
@@ -109,18 +118,29 @@ def test_fetch_cutouts_command_with_config_file(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert captured["config_file"] == config_file
     assert captured["force_refresh"] is False
+    assert captured["name"] is None
+    assert captured["report_validate_existing"] is False
     assert "Done: fetched=1, skipped=0" in result.stdout
 
 
 def test_fetch_cutouts_command_with_all_uses_default(monkeypatch):
     captured: dict[str, object] = {}
 
-    def fake_fetch_cutouts(*, config_file: Path, force_refresh: bool):
+    def fake_fetch_cutouts(
+        *,
+        config_file: Path,
+        force_refresh: bool,
+        name: str | None,
+        report_validate_existing: bool,
+    ):
         captured["config_file"] = config_file
         captured["force_refresh"] = force_refresh
+        captured["name"] = name
+        captured["report_validate_existing"] = report_validate_existing
         return {
             "fetched_count": 0,
             "skipped_count": 2,
+            "validation_report": None,
         }
 
     monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
@@ -130,7 +150,60 @@ def test_fetch_cutouts_command_with_all_uses_default(monkeypatch):
     assert result.exit_code == 0
     assert captured["config_file"] == Path("config/cutouts.yaml")
     assert captured["force_refresh"] is True
+    assert captured["name"] is None
+    assert captured["report_validate_existing"] is False
     assert "Done: fetched=0, skipped=2" in result.stdout
+
+
+def test_fetch_cutouts_command_name_and_validation_report(monkeypatch, tmp_path):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text("cutouts: []\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_fetch_cutouts(
+        *,
+        config_file: Path,
+        force_refresh: bool,
+        name: str | None,
+        report_validate_existing: bool,
+    ):
+        captured["config_file"] = config_file
+        captured["force_refresh"] = force_refresh
+        captured["name"] = name
+        captured["report_validate_existing"] = report_validate_existing
+        return {
+            "fetched_count": 0,
+            "skipped_count": 1,
+            "validation_report": {
+                "checked": 1,
+                "matched": 1,
+                "mismatched": 0,
+                "missing": 0,
+                "remote_skipped": 0,
+                "errors": 0,
+            },
+        }
+
+    monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "fetch-cutouts",
+            "--config-file",
+            str(config_file),
+            "--name",
+            "my-cutout",
+            "--report-validate-existing",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["config_file"] == config_file
+    assert captured["force_refresh"] is False
+    assert captured["name"] == "my-cutout"
+    assert captured["report_validate_existing"] is True
+    assert "Validation report: checked=1, matched=1, mismatched=0" in result.stdout
 
 
 def test_fetch_cutouts_command_requires_config_or_all():

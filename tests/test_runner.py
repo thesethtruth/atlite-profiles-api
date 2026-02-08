@@ -311,6 +311,109 @@ def test_fetch_cutouts_prepares_local_file(tmp_path, monkeypatch):
     ]
 
 
+def test_fetch_cutouts_filters_by_name(tmp_path, monkeypatch):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text(
+        (
+            "cutouts:\n"
+            "  - name: first\n"
+            "    filename: first.nc\n"
+            "    target: data\n"
+            "    cutout:\n"
+            "      module: era5\n"
+            "      x: [1.0, 2.0]\n"
+            "      y: [3.0, 4.0]\n"
+            "      time: '2024'\n"
+            "    prepare: {}\n"
+            "  - name: second\n"
+            "    filename: second.nc\n"
+            "    target: data\n"
+            "    cutout:\n"
+            "      module: era5\n"
+            "      x: [1.0, 2.0]\n"
+            "      y: [3.0, 4.0]\n"
+            "      time: '2024'\n"
+            "    prepare: {}\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    prepared_paths: list[str] = []
+
+    class DummyCutout:
+        def __init__(self, **kwargs):
+            self.path = Path(kwargs["path"])
+
+        def prepare(self, **kwargs):
+            prepared_paths.append(str(self.path))
+            self.path.write_text("ok", encoding="utf-8")
+
+    monkeypatch.setitem(
+        sys.modules, "atlite", types.SimpleNamespace(Cutout=DummyCutout)
+    )
+
+    result = fetch_cutouts(config_file=config_file, force_refresh=False, name="second")
+
+    assert result["fetched_count"] == 1
+    assert prepared_paths == ["data/second.nc"]
+
+
+def test_fetch_cutouts_validation_report_for_existing_local_file(tmp_path, monkeypatch):
+    config_file = tmp_path / "cutouts.yaml"
+    config_file.write_text(
+        (
+            "cutouts:\n"
+            "  - name: existing\n"
+            "    filename: existing.nc\n"
+            "    target: data\n"
+            "    cutout:\n"
+            "      module: era5\n"
+            "      x: [1.0, 2.0]\n"
+            "      y: [3.0, 4.0]\n"
+            "      time: '2024'\n"
+            "    prepare:\n"
+            "      features: [wind]\n"
+        ),
+        encoding="utf-8",
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "existing.nc").write_text("old", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    from core.models import CutoutDefinition, CutoutInspectResponse, CutoutPrepareConfig
+
+    monkeypatch.setattr(
+        runner_module,
+        "inspect_cutout_metadata",
+        lambda _path, *, name: CutoutInspectResponse(
+            filename=name,
+            path="data/existing.nc",
+            cutout=CutoutDefinition(
+                module="era5",
+                x=[1.0, 2.0],
+                y=[3.0, 4.0],
+                time="2024",
+            ),
+            prepare=CutoutPrepareConfig(features=["wind"]),
+            inferred=True,
+        ),
+    )
+
+    result = fetch_cutouts(
+        config_file=config_file,
+        force_refresh=False,
+        report_validate_existing=True,
+    )
+
+    report = result["validation_report"]
+    assert report["checked"] == 1
+    assert report["matched"] == 1
+    assert report["mismatched"] == 0
+    assert report["missing"] == 0
+
+
 def test_fetch_cutouts_skips_existing_unless_force_refresh(tmp_path, monkeypatch):
     config_file = tmp_path / "cutouts.yaml"
     config_file.write_text(

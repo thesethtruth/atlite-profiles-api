@@ -575,6 +575,21 @@ def fetch_cutouts_command(
             help="Regenerate and overwrite existing cutouts (and re-upload for remote)."
         ),
     ] = False,
+    name: Annotated[
+        str | None,
+        typer.Option(
+            help="Only process the cutout entry with matching YAML 'name'.",
+        ),
+    ] = None,
+    report_validate_existing: Annotated[
+        bool,
+        typer.Option(
+            help=(
+                "Inspect local existing .nc files and print a compatibility report at "
+                "the end."
+            )
+        ),
+    ] = False,
 ) -> None:
     if config_file is None and not all:
         raise typer.BadParameter(
@@ -595,6 +610,8 @@ def fetch_cutouts_command(
         result = fetch_cutouts(
             config_file=resolved_config,
             force_refresh=force_refresh,
+            name=name,
+            report_validate_existing=report_validate_existing,
         )
     except (OSError, ValueError) as exc:
         raise typer.BadParameter(str(exc), param_hint="config-file")
@@ -605,6 +622,17 @@ def fetch_cutouts_command(
         f"skipped={result['skipped_count']}, "
         f"config={resolved_config}"
     )
+    validation_report = result.get("validation_report")
+    if isinstance(validation_report, dict):
+        typer.echo(
+            "Validation report: "
+            f"checked={validation_report['checked']}, "
+            f"matched={validation_report['matched']}, "
+            f"mismatched={validation_report['mismatched']}, "
+            f"missing={validation_report['missing']}, "
+            f"remote_skipped={validation_report['remote_skipped']}, "
+            f"errors={validation_report['errors']}"
+        )
 
 
 if __name__ == "__main__":

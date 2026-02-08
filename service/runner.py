@@ -17,6 +17,7 @@ from core.catalog import (
     fetch_atlite_turbine_paths,
     fetch_atlite_turbines,
 )
+from core.cutout_metadata import inspect_cutout_metadata
 from core.models import (
     CutoutFetchConfig,
     CutoutFetchConfigEntry,
@@ -183,27 +184,165 @@ def _build_cutout_kwargs(
     return cutout_kwargs
 
 
-def fetch_cutouts(*, config_file: Path, force_refresh: bool = False) -> dict[str, Any]:
+def _normalize_time(value: object) -> str:
+    if isinstance(value, list):
+        return "|".join(str(item) for item in value)
+    return str(value)
+
+
+def _to_float_list(value: object) -> list[float]:
+    if not isinstance(value, list):
+        return []
+    converted: list[float] = []
+    for item in value:
+        if not isinstance(item, (int, float)):
+            return []
+        converted.append(float(item))
+    return converted
+
+
+def _close_enough(a: float, b: float, *, tolerance: float = 1e-6) -> bool:
+    return abs(a - b) <= tolerance
+
+
+def _compare_cutout_to_config(
+    entry: CutoutFetchConfigEntry, *, local_file: Path
+) -> dict[str, Any]:
+    observed = inspect_cutout_metadata(local_file, name=entry.filename)
+    mismatches: list[str] = []
+
+    expected_module = str(entry.cutout.get("module", ""))
+    if observed.cutout.module != expected_module:
+        mismatches.append(
+            f"module (expected={expected_module}, actual={observed.cutout.module})"
+        )
+
+    expected_x = _to_float_list(entry.cutout.get("x"))
+    if len(expected_x) == 2:
+        if not (
+            _close_enough(observed.cutout.x[0], expected_x[0])
+            and _close_enough(observed.cutout.x[1], expected_x[1])
+        ):
+            mismatches.append(f"x (expected={expected_x}, actual={observed.cutout.x})")
+
+    expected_y = _to_float_list(entry.cutout.get("y"))
+    if len(expected_y) == 2:
+        if not (
+            _close_enough(observed.cutout.y[0], expected_y[0])
+            and _close_enough(observed.cutout.y[1], expected_y[1])
+        ):
+            mismatches.append(f"y (expected={expected_y}, actual={observed.cutout.y})")
+
+    expected_time = _normalize_time(entry.cutout.get("time"))
+    actual_time = _normalize_time(observed.cutout.time)
+    if expected_time != actual_time:
+        mismatches.append(f"time (expected={expected_time}, actual={actual_time})")
+
+    expected_features = sorted(str(item) for item in entry.prepare.get("features", []))
+    actual_features = sorted(observed.prepare.features)
+    if expected_features != actual_features:
+        mismatches.append(
+            f"features (expected={expected_features}, actual={actual_features})"
+        )
+
+    return {
+        "name": entry.name,
+        "filename": entry.filename,
+        "path": str(local_file),
+        "status": "match" if not mismatches else "mismatch",
+        "mismatches": mismatches,
+    }
+
+
+def _empty_validation_report() -> dict[str, Any]:
+    return {
+        "enabled": True,
+        "checked": 0,
+        "matched": 0,
+        "mismatched": 0,
+        "missing": 0,
+        "remote_skipped": 0,
+        "errors": 0,
+        "entries": [],
+    }
+
+
+def fetch_cutouts(
+    *,
+    config_file: Path,
+    force_refresh: bool = False,
+    name: str | None = None,
+    report_validate_existing: bool = False,
+) -> dict[str, Any]:
     import atlite
 
     _apply_cdsapi_env_fallback()
     payload = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     config = CutoutFetchConfig.model_validate(payload)
+    entries = list(config.cutouts)
+    if name is not None:
+        entries = [entry for entry in entries if entry.name == name]
+        if not entries:
+            raise ValueError(f"Cutout config name '{name}' was not found.")
 
     fetched: list[str] = []
     skipped: list[str] = []
+    validation_report = _empty_validation_report() if report_validate_existing else None
 
-    for entry in config.cutouts:
+    for entry in entries:
         filename = entry.filename
         target = entry.target
         is_remote = _is_remote_target(target)
+        local_file = Path(target) / filename
 
         destination = _resolve_target_path(target, filename)
         exists = (
-            _remote_file_exists(target, filename)
-            if is_remote
-            else (Path(target) / filename).exists()
+            _remote_file_exists(target, filename) if is_remote else local_file.exists()
         )
+
+        if validation_report is not None:
+            if is_remote:
+                validation_report["remote_skipped"] += 1
+                validation_report["entries"].append(
+                    {
+                        "name": entry.name,
+                        "filename": filename,
+                        "path": destination,
+                        "status": "remote_skipped",
+                    }
+                )
+            elif exists:
+                try:
+                    result = _compare_cutout_to_config(entry, local_file=local_file)
+                except Exception as exc:
+                    validation_report["errors"] += 1
+                    validation_report["entries"].append(
+                        {
+                            "name": entry.name,
+                            "filename": filename,
+                            "path": str(local_file),
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
+                else:
+                    validation_report["checked"] += 1
+                    if result["status"] == "match":
+                        validation_report["matched"] += 1
+                    else:
+                        validation_report["mismatched"] += 1
+                    validation_report["entries"].append(result)
+            else:
+                validation_report["missing"] += 1
+                validation_report["entries"].append(
+                    {
+                        "name": entry.name,
+                        "filename": filename,
+                        "path": str(local_file),
+                        "status": "missing",
+                    }
+                )
+
         if exists and not force_refresh:
             skipped.append(destination)
             continue
@@ -233,6 +372,7 @@ def fetch_cutouts(*, config_file: Path, force_refresh: bool = False) -> dict[str
         "skipped": skipped,
         "fetched_count": len(fetched),
         "skipped_count": len(skipped),
+        "validation_report": validation_report,
     }
 
 

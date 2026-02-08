@@ -1,5 +1,6 @@
 cutouts:
-  - filename: nl-2012-era5.nc
+  - name: nl-2012
+    filename: nl-2012-era5.nc
     target: data
     cutout:
       module: era5
