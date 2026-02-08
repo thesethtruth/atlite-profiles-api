@@ -11,6 +11,7 @@ from service.api.catalog import (
 )
 from service.api.openapi import configure_openapi_dynamic_enums
 from service.api.routers import (
+    cutouts_router,
     generate_router,
     health_router,
     solar_router,
@@ -41,6 +42,7 @@ apply_catalog_snapshot(app, CatalogSnapshot())
 configure_openapi_dynamic_enums(app)
 
 app.include_router(health_router)
+app.include_router(cutouts_router)
 app.include_router(turbines_router)
 app.include_router(solar_router)
 app.include_router(generate_router)

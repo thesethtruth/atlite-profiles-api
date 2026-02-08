@@ -23,6 +23,23 @@ def _set_openapi_path_param_enum(
             parameter.setdefault("schema", {})["enum"] = values
 
 
+def _set_generate_cutouts_enum(
+    openapi_schema: dict[str, Any],
+    *,
+    schema_name: str,
+    values: list[str],
+) -> None:
+    components = openapi_schema.get("components", {})
+    schemas = components.get("schemas", {})
+    schema = schemas.get(schema_name, {})
+    properties = schema.get("properties", {})
+    cutouts = properties.get("cutouts", {})
+    items = cutouts.setdefault("items", {})
+    items["enum"] = values
+    if values:
+        cutouts["default"] = [values[0]]
+
+
 def configure_openapi_dynamic_enums(app: FastAPI) -> None:
     def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema is not None:
@@ -49,6 +66,11 @@ def configure_openapi_dynamic_enums(app: FastAPI) -> None:
             method="get",
             parameter_name="technology",
             values=list(catalog.available_solar_technologies),
+        )
+        _set_generate_cutouts_enum(
+            openapi_schema,
+            schema_name="GenerateRequest",
+            values=list(catalog.available_cutouts),
         )
 
         app.openapi_schema = openapi_schema

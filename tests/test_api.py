@@ -46,8 +46,32 @@ def test_solar_technologies_endpoint(monkeypatch):
     assert response.json() == {"items": ["CSi", "CdTe"]}
 
 
+def test_cutouts_endpoint(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=[],
+            available_cutouts=["a.nc", "b.nc"],
+        ),
+    )
+
+    response = client.get("/cutouts")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": ["a.nc", "b.nc"]}
+
+
 def test_generate_endpoint(monkeypatch):
     captured: dict[str, object] = {}
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=[],
+            available_cutouts=["europe-2024-era5.nc"],
+        ),
+    )
 
     def fake_run_profiles(**kwargs):
         captured.update(kwargs)
@@ -104,6 +128,35 @@ def test_generate_endpoint(monkeypatch):
     assert captured["turbine_config"]["name"] == "API_Custom"
     assert captured["solar_technology_config"]["name"] == "API_Solar"
     assert captured["solar_technology_config"]["model"] == "huld"
+
+
+def test_generate_endpoint_unknown_cutout_rejected(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=[],
+            available_cutouts=["known.nc"],
+        ),
+    )
+
+    payload = {
+        "profile_type": "both",
+        "latitude": 52.0,
+        "longitude": 5.0,
+        "base_path": ".",
+        "output_dir": "output",
+        "cutouts": ["unknown.nc"],
+        "turbine_model": "ModelA",
+        "slopes": [30.0],
+        "azimuths": [180.0],
+        "panel_model": "CSi",
+        "visualize": False,
+    }
+    response = client.post("/generate", json=payload)
+
+    assert response.status_code == 422
+    assert "Unknown cutout(s): unknown.nc." in response.json()["detail"]
 
 
 def test_turbine_inspect_endpoint(monkeypatch):
@@ -232,6 +285,7 @@ def test_openapi_contains_enum_for_inspect_path_params():
         CatalogSnapshot(
             available_turbines=["T1", "T2"],
             available_solar_technologies=["CSi", "CdTe"],
+            available_cutouts=["c1.nc", "c2.nc"],
         ),
     )
     api.app.openapi_schema = None
@@ -248,6 +302,10 @@ def test_openapi_contains_enum_for_inspect_path_params():
     solar_enum = next(
         p["schema"]["enum"] for p in solar_params if p["name"] == "technology"
     )
+    cutout_enum = schema["components"]["schemas"]["GenerateRequest"]["properties"][
+        "cutouts"
+    ]["items"]["enum"]
 
     assert turbine_enum == ["T1", "T2"]
     assert solar_enum == ["CSi", "CdTe"]
+    assert cutout_enum == ["c1.nc", "c2.nc"]

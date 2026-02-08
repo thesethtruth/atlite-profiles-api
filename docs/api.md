@@ -13,6 +13,7 @@ Default bind is `0.0.0.0:8000`.
 ## Endpoints
 
 - `GET /health`
+- `GET /cutouts`
 - `GET /turbines`
 - `GET /turbines/{turbine_model}`
 - `GET /solar-technologies`
@@ -22,6 +23,20 @@ Default bind is `0.0.0.0:8000`.
 At startup, inspect path parameters are constrained to the server's currently
 available catalogs (local `config/*` + atlite). In OpenAPI/Swagger this appears
 as enum values for `turbine_model` and `technology`.
+
+Cutouts are discovered at startup from `config/api.yaml`:
+
+```yaml
+cutout_sources:
+  - data
+  - /mnt/shared/cutouts
+  - /srv/era5/**/*.nc
+```
+
+All matching `.nc` files are globbed and exposed as:
+
+- `GET /cutouts` response items
+- OpenAPI enum values for `POST /generate` request field `cutouts`
 
 ### Example Request
 
