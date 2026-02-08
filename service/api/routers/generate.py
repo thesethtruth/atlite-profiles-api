@@ -28,7 +28,7 @@ router = APIRouter(tags=["Generation"])
 )
 def generate(
     request: Request,
-    payload: GenerateRequest = Body(
+    request_payload: GenerateRequest = Body(
         openapi_examples={
             "inline_custom_wind_and_solar": {
                 "summary": "Generate with inline wind and solar configs",
@@ -39,7 +39,9 @@ def generate(
 ) -> GenerateProfilesResponse:
     catalog = get_catalog_snapshot(request.app)
     if catalog.available_cutouts:
-        unavailable = sorted(set(payload.cutouts) - set(catalog.available_cutouts))
+        unavailable = sorted(
+            set(request_payload.cutouts) - set(catalog.available_cutouts)
+        )
         if unavailable:
             raise HTTPException(
                 status_code=422,
@@ -50,26 +52,27 @@ def generate(
                 ),
             )
 
-    return run_profiles(
-        profile_type=payload.profile_type,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        base_path=payload.base_path,
-        output_dir=payload.output_dir,
-        cutouts=payload.cutouts,
-        turbine_model=payload.turbine_model,
+    response_payload = run_profiles(
+        profile_type=request_payload.profile_type,
+        latitude=request_payload.latitude,
+        longitude=request_payload.longitude,
+        base_path=request_payload.base_path,
+        output_dir=request_payload.output_dir,
+        cutouts=request_payload.cutouts,
+        turbine_model=request_payload.turbine_model,
         turbine_config=(
-            payload.turbine_config.model_dump()
-            if payload.turbine_config is not None
+            request_payload.turbine_config.model_dump()
+            if request_payload.turbine_config is not None
             else None
         ),
-        slopes=payload.slopes,
-        azimuths=payload.azimuths,
-        panel_model=payload.panel_model,
+        slopes=request_payload.slopes,
+        azimuths=request_payload.azimuths,
+        panel_model=request_payload.panel_model,
         solar_technology_config=(
-            payload.solar_technology_config.model_dump()
-            if payload.solar_technology_config is not None
+            request_payload.solar_technology_config.model_dump()
+            if request_payload.solar_technology_config is not None
             else None
         ),
-        visualize=payload.visualize,
+        visualize=request_payload.visualize,
     )
+    return GenerateProfilesResponse.model_validate(response_payload)

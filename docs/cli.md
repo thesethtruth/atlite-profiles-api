@@ -37,5 +37,6 @@ uv run profiles-cli fetch-cutouts --config-file config/cutouts.yaml --force-refr
   - `filename`: output `.nc` filename.
   - `target`: local directory or remote SCP target (`user@host:/path`).
   - `cutout`: kwargs for `atlite.Cutout(...)` (for example `module`, `x`, `y`, `time`).
+  - `cutout.chunks`: optional chunking passed to `atlite.Cutout(...)` (for example `chunks: {time: 100}` to keep CDS requests smaller).
   - `prepare`: kwargs for `cutout.prepare(...)` (for example `features`, `compression`).
 - API returns the same payload at `GET /turbines/{turbine_model}`.

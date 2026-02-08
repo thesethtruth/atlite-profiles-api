@@ -231,7 +231,21 @@ def test_turbine_inspect_endpoint(monkeypatch):
     monkeypatch.setattr(
         turbines_router,
         "inspect_turbine",
-        lambda name: {"status": "ok", "turbine": name, "metadata": {}, "curve": []},
+        lambda name: {
+            "status": "ok",
+            "turbine": name,
+            "metadata": {
+                "name": name,
+                "manufacturer": "unknown",
+                "source": "custom",
+                "provider": "custom",
+                "hub_height_m": 120.0,
+                "rated_power_mw": 5.0,
+                "definition_file": "config/wind/ModelA.yaml",
+            },
+            "curve": [{"speed": 0.0, "power_mw": 0.0}],
+            "curve_summary": {"point_count": 1, "speed_min": 0.0, "speed_max": 0.0},
+        },
     )
 
     response = client.get("/turbines/ModelA")
@@ -275,7 +289,13 @@ def test_solar_technology_inspect_endpoint(monkeypatch):
         lambda name: {
             "status": "ok",
             "technology": name,
-            "metadata": {},
+            "metadata": {
+                "name": name,
+                "manufacturer": "unknown",
+                "source": "custom",
+                "provider": "custom",
+                "definition_file": "config/solar/CSi.yaml",
+            },
             "parameters": {},
         },
     )

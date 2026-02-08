@@ -267,6 +267,10 @@ class ListItemsResponse(BaseModel):
     items: list[str]
 
 
+class HealthResponse(BaseModel):
+    status: Literal["ok"]
+
+
 class CutoutCatalogEntry(BaseModel):
     name: str
     path: str
