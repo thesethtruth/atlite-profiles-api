@@ -40,7 +40,7 @@ class WindTurbineConfig(BaseModel):
         )
         payload: dict[str, object] = {
             "name": self.name,
-            "HUB_HEIGHT": self.hub_height_m,
+            "hub_height": self.hub_height_m,
             "V": self.wind_speeds,
             "POW": self.power_curve_mw,
             "P": rated_power,

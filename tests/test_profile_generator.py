@@ -20,6 +20,7 @@ def test_wind_config_uses_custom_turbine_atlite_yaml(tmp_path, monkeypatch):
     payload = config.atlite_turbine()
 
     assert isinstance(payload, dict)
+    assert payload["hub_height"] == 145
     assert payload["HUB_HEIGHT"] == 145
     assert payload["name"] == "MyCustom"
 
@@ -46,7 +47,7 @@ def test_wind_config_uses_custom_turbine_api_yaml(tmp_path, monkeypatch):
     payload = config.atlite_turbine()
 
     assert isinstance(payload, dict)
-    assert payload["HUB_HEIGHT"] == 132
+    assert payload["hub_height"] == 132
     assert payload["V"] == [0, 10, 20]
     assert payload["POW"] == [0, 2, 4]
 

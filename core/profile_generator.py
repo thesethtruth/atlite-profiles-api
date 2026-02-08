@@ -98,6 +98,7 @@ class WindConfig(BaseModel):
         # Already in atlite YAML shape.
         if "HUB_HEIGHT" in payload and "V" in payload and "POW" in payload:
             normalized = dict(payload)
+            normalized.setdefault("hub_height", payload["HUB_HEIGHT"])
             normalized.setdefault("name", self.turbine_model)
             return normalized
 
