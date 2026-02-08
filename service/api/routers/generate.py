@@ -12,6 +12,41 @@ from service.runner import run_profiles
 router = APIRouter(tags=["Generation"])
 
 
+def _validate_cutout_coordinate_bounds(
+    *,
+    latitude: float,
+    longitude: float,
+    cutouts: list[str],
+    catalog,
+) -> None:
+    out_of_bounds: list[str] = []
+    for cutout in cutouts:
+        metadata = catalog.cutout_metadata.get(cutout)
+        if metadata is None:
+            continue
+
+        x_min, x_max = metadata.cutout.x
+        y_min, y_max = metadata.cutout.y
+        lon_in_bounds = x_min <= longitude <= x_max
+        lat_in_bounds = y_min <= latitude <= y_max
+        if not (lon_in_bounds and lat_in_bounds):
+            out_of_bounds.append(
+                (
+                    f"{cutout} (x=[{x_min}, {x_max}], y=[{y_min}, {y_max}], "
+                    f"requested=({latitude}, {longitude}))"
+                )
+            )
+
+    if out_of_bounds:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Requested coordinates are outside cutout bounds for: "
+                + "; ".join(out_of_bounds)
+            ),
+        )
+
+
 @router.post(
     "/generate",
     response_model=GenerateProfilesResponse,
@@ -51,6 +86,12 @@ def generate(
                     + ". Check config/api.yaml cutout_sources."
                 ),
             )
+    _validate_cutout_coordinate_bounds(
+        latitude=request_payload.latitude,
+        longitude=request_payload.longitude,
+        cutouts=request_payload.cutouts,
+        catalog=catalog,
+    )
 
     response_payload = run_profiles(
         profile_type=request_payload.profile_type,

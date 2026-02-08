@@ -18,6 +18,10 @@ def list_cutouts(request: Request) -> ListItemsResponse:
 @router.get("/cutouts/{cutout_name}")
 def inspect_cutout(cutout_name: str, request: Request) -> CutoutInspectResponse:
     catalog = get_catalog_snapshot(request.app)
+    cached = catalog.cutout_metadata.get(cutout_name)
+    if isinstance(cached, CutoutInspectResponse):
+        return cached
+
     entry = next(
         (item for item in catalog.cutout_entries if item.name == cutout_name),
         None,

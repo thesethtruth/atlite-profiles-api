@@ -181,6 +181,29 @@ def test_fetch_cutouts_command_name_and_validation_report(monkeypatch, tmp_path)
                 "missing": 0,
                 "remote_skipped": 0,
                 "errors": 0,
+                "entries": [
+                    {
+                        "name": "my-cutout",
+                        "filename": "my.nc",
+                        "path": "data/my.nc",
+                        "status": "match",
+                        "expected": {
+                            "module": "era5",
+                            "x": [1.0, 2.0],
+                            "y": [3.0, 4.0],
+                            "time": "2024",
+                            "features": ["wind"],
+                        },
+                        "observed": {
+                            "module": "era5",
+                            "x": [1.0, 2.0],
+                            "y": [3.0, 4.0],
+                            "time": "2024",
+                            "features": ["wind"],
+                        },
+                        "mismatches": [],
+                    }
+                ],
             },
         }
 
@@ -204,6 +227,10 @@ def test_fetch_cutouts_command_name_and_validation_report(monkeypatch, tmp_path)
     assert captured["name"] == "my-cutout"
     assert captured["report_validate_existing"] is True
     assert "Validation report: checked=1, matched=1, mismatched=0" in result.stdout
+    assert "Validation details:" in result.stdout
+    assert "Config (Expected)" in result.stdout
+    assert "Found (match)" in result.stdout
+    assert "my-cutout (match)" in result.stdout
 
 
 def test_fetch_cutouts_command_requires_config_or_all():

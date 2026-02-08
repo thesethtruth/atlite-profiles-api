@@ -7,6 +7,6 @@ services:
     ports:
       - "8085:8085"
     volumes:
-      - ./data:/app/data
+      - /cutouts:/data
       - ./output:/app/output
     restart: unless-stopped

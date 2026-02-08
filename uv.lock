@@ -784,6 +784,42 @@ wheels = [
 ]
 
 [[package]]
+name = "eccodeslib"
+version = "2.43.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "eckitlib" },
+    { name = "fckitlib" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/d9/e4affaa8be4eb20ff964852a4e48c46f493903f002ce7f0ef620f39fec04/eccodeslib-2.43.0-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:1c807ae03344f175d09334181e04f6125937da397781d8823c226006730e0020", size = 9055193, upload-time = "2025-07-24T14:48:08.425Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/0b/d9a9654aeb3732aaf66f682ebb9730d8ffd9c486675218f9d0fb85a7b5dd/eccodeslib-2.43.0-cp312-cp312-macosx_13_0_x86_64.whl", hash = "sha256:52162c1ec486ef6edf58768490977e891878d6de3d70116f54dab13accd81ec8", size = 9526727, upload-time = "2025-07-24T14:48:30.755Z" },
+    { url = "https://files.pythonhosted.org/packages/45/ad/9211511d94c21f38c7a8f20cd5f24dd08629cf6ff74ae5527babe62c5556/eccodeslib-2.43.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:e46e2f5903d2f16bed8c8c10a9accf0af0bd48098b1d25e8f431771f8d84a6dc", size = 20488767, upload-time = "2025-07-24T14:53:07.48Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/fe/2520178deebccbd43de61cb08a3f85dbbeb7e8e050f137b8afe21fdd4938/eccodeslib-2.43.0-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:c2b9ac4a7ff634ae5a9c4a87d8e20d9551b559075b2b68c5f10b724810987d00", size = 9055182, upload-time = "2025-07-24T14:46:43.268Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/b1/a432d36a406df59345767f76761edfa1054f3e6b209d3c78bb8b802b4e4c/eccodeslib-2.43.0-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:8d4955ac4eaabae55f1d283387333aa77e6574e799bece89ddaa09a013bf232b", size = 9526109, upload-time = "2025-07-24T14:48:09.744Z" },
+    { url = "https://files.pythonhosted.org/packages/51/67/bd6aa1dcb523b3da341d80a5b5de50a54e7381423d4b8cafaddada92bc87/eccodeslib-2.43.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:4794a8cda64df9f0e74ec752bb21f15c680998d0bc011169202deda46a2f1ef5", size = 20488766, upload-time = "2025-07-24T15:03:27.776Z" },
+]
+
+[[package]]
+name = "eckitlib"
+version = "1.32.4.9"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/d9/85e31f5f1232400ddc5a3b2fc9288f02a32c497c7c228b84828b09097d92/eckitlib-1.32.4.9-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:ddbd43edcd75bc6221c03aa499751a7dfe4866297668f0da968061aadf45cddb", size = 2925916, upload-time = "2026-01-26T16:42:30.792Z" },
+    { url = "https://files.pythonhosted.org/packages/76/0e/d73a853a961ee81d20917b880526ebcffc4e04f665c8b2ebaa1909591a7a/eckitlib-1.32.4.9-cp312-cp312-macosx_13_0_x86_64.whl", hash = "sha256:5b4eb198c4c81cbd491dd661b19ad8be1a821a592e780daa22ed5061862bfe1b", size = 3029134, upload-time = "2026-01-26T17:09:09.273Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/46/f88ee8666cafb88e204732a12f31cf377936b3ffcb05248907706ba4d767/eckitlib-1.32.4.9-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:57e51c9aea72a0bba470d91d40c1bcc7daa6c876593034c33484d7fd1d8ce1f6", size = 44307720, upload-time = "2026-01-26T16:52:52.317Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/83/2b39ab8574c5b052ada4384fb5782f0205d8e5945fbfe52b6eda0fc64ba1/eckitlib-1.32.4.9-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:276d97b1b66980c28becb1ca67555ef9d52720a50df39e9cdeee3e1992e12415", size = 44948767, upload-time = "2026-01-26T17:03:16.55Z" },
+    { url = "https://files.pythonhosted.org/packages/14/39/1cb892427e6bd17fb4daf6e61ef7b7cf5bdbd7d31df09683cc751bdf1f38/eckitlib-1.32.4.9-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:d43745d5920e16ea3a3565af5c865566ee4c4d52d21a84bef4ac840a9b8b28cd", size = 2925912, upload-time = "2026-01-26T16:42:45.807Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/3d/0d13f35e2973af09420a716f44a6fc745419eb0f5b3ab0a7d9ff01250ef4/eckitlib-1.32.4.9-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:ab367d8c28e6e08aba2a2f3ef7768eb3871510122c33d40035dc65c77569ef7d", size = 3029126, upload-time = "2026-01-26T17:24:14.248Z" },
+    { url = "https://files.pythonhosted.org/packages/59/1b/61806aa4c7daa4f26db31fc04dd13f4619a4af152c2af11254c677610e9f/eckitlib-1.32.4.9-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d8e1587aa7995f421220390dc75d0276362e0bd6413b27e52af360e4522a3544", size = 44307711, upload-time = "2026-01-26T16:53:36.293Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/26/b9d126ba325bba9229db095cff66e5f39302c6cf49bb0f0d3224c97d4e8c/eckitlib-1.32.4.9-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3ac5992709f54d3d83582898f39bf891a318bba12d637b528b518ac67770cc02", size = 44948760, upload-time = "2026-01-26T17:03:53.659Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/4c/1832b11d1760d80bc92966615ba3901ee045941ef73b002321a70136e8d4/eckitlib-1.32.4.9-cp314-cp314-macosx_13_0_arm64.whl", hash = "sha256:50f130a16dc5d84667a84ef22717f78a2c59fdd0289fe2a8a29f6227f91e9a49", size = 2925901, upload-time = "2026-01-26T17:02:58.679Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/53/d5f2ba785936ed376f3928013baf43ae8cf5791418b53d940310bc2fd3af/eckitlib-1.32.4.9-cp314-cp314-macosx_13_0_x86_64.whl", hash = "sha256:925f2bbe06242048199962f7b735ccbe2051e7348c9b73f8cecba9b85efdd7a7", size = 3029136, upload-time = "2026-01-26T17:07:29.292Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/ba/b636ff40064839038873f8dcddeb4ac7c06d82afd29e9c8098780f90ad85/eckitlib-1.32.4.9-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:28dd7c9422c23f598b08fce377f0a3e8cfad3b96d9ad1a3ad8cf03018091605b", size = 44307710, upload-time = "2026-01-26T16:53:58.035Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/d7/a025bb021e62f912b1cf97666e119ac644dc8966e259d0e44eccd32da1fd/eckitlib-1.32.4.9-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4cdb1a6d89510d7d558484210eb209c082dc8839d45955288e5ec580ad819c51", size = 44948781, upload-time = "2026-01-26T17:00:29.959Z" },
+]
+
+[[package]]
 name = "ecmwf-datastores-client"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -962,6 +998,28 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/20/b5/23b216d9d985a956623b6bd12d4086b60f0059b27799f23016af04a74ea1/fastjsonschema-2.21.2.tar.gz", hash = "sha256:b1eb43748041c880796cd077f1a07c3d94e93ae84bba5ed36800a33554ae05de", size = 374130, upload-time = "2025-08-14T18:49:36.666Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/a8/20d0723294217e47de6d9e2e40fd4a9d2f7c4b6ef974babd482a59743694/fastjsonschema-2.21.2-py3-none-any.whl", hash = "sha256:1c797122d0a86c5cace2e54bf4e819c36223b552017172f32c5c024a6b77e463", size = 24024, upload-time = "2025-08-14T18:49:34.776Z" },
+]
+
+[[package]]
+name = "fckitlib"
+version = "0.14.1.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "eckitlib" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/e7/a35e1f6f951ccd0ca42349841933b51174aabfd6a423c791ed4ee99e9018/fckitlib-0.14.1.9-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:6618ed868d98a9738a146ab16985576f0ff3e6376578fcce1595b121ec32e249", size = 411481, upload-time = "2026-01-26T16:42:35.239Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/a3/229fc782a81edf525099025071919a18be49cf6983ed01434f4ae4640b60/fckitlib-0.14.1.9-cp312-cp312-macosx_13_0_x86_64.whl", hash = "sha256:8c4bb06f4b903ea48032e049a3ade247d79053cedcc98834e6c21d96f584a843", size = 417156, upload-time = "2026-01-26T17:09:12.408Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/c4/001cefd6b5aa9a7145073e5d12bc6c4ddd1ef82905557216a9eaac476833/fckitlib-0.14.1.9-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:0c7898736e4c72829d6ebbf24c9b3568ed7f2c44ca9fe2288294db033a5884ec", size = 1393871, upload-time = "2026-01-26T16:52:59.268Z" },
+    { url = "https://files.pythonhosted.org/packages/da/42/2529facf390cdb90928f492d56241c99afa587436a763c86d10187acf393/fckitlib-0.14.1.9-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:116ab236847c0624670f929d480d6f902b0f4bd8cf58ef4e20f48852b199a567", size = 12810387, upload-time = "2026-01-26T17:03:23.769Z" },
+    { url = "https://files.pythonhosted.org/packages/48/e7/73c2fd71c323de88ace4e9175e914896905f14c7eefe0e99fa0c95e73d10/fckitlib-0.14.1.9-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:f54a5718e15906b40f5fd81a607399439e8250ba003388f1cf3c083617f97874", size = 411468, upload-time = "2026-01-26T16:42:48.476Z" },
+    { url = "https://files.pythonhosted.org/packages/09/32/17ca3b1105cbc83d64179fd622a1227968382c94e71e5ab4e5758a441978/fckitlib-0.14.1.9-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:98606cfce68da8316c96b4a8b6fe2f972b480660ec43865b62e7eec7d48f5cab", size = 417159, upload-time = "2026-01-26T17:24:17.116Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/24/e57a6cebe917692757346c10b7294794b4e570d04e161e08f2820e249be0/fckitlib-0.14.1.9-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:779e62d124960b445d8a93f472afae542c08b6c9094cd7d1c6dc3e0dbe695f0e", size = 1393876, upload-time = "2026-01-26T16:53:48.848Z" },
+    { url = "https://files.pythonhosted.org/packages/63/4a/b9faa16965c6cb50568c58cdb02daf3c280118e846f45aeed8f8470e294b/fckitlib-0.14.1.9-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:d7ebebcce7d214d84389691142f11969fe827387996b69a7653047acc013c416", size = 12810377, upload-time = "2026-01-26T17:04:00.382Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/72/da692a46224519b6b9f895a36b507c9eae9bfe0f6a36de99f173dde11037/fckitlib-0.14.1.9-cp314-cp314-macosx_13_0_arm64.whl", hash = "sha256:553e834cdd3ef7dceca69d32b47e80a9bab03cd0327fc368e71b33d938fb8c94", size = 411476, upload-time = "2026-01-26T17:03:01.32Z" },
+    { url = "https://files.pythonhosted.org/packages/53/be/b1ace572fbd1030c8359774c89d1849c32e246784723924c0c3ab5148556/fckitlib-0.14.1.9-cp314-cp314-macosx_13_0_x86_64.whl", hash = "sha256:cb81722920909ec170766dec7f787f5e8e27ba4beed17143c7db8bc20c7ed89b", size = 417158, upload-time = "2026-01-26T17:07:32.201Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/ca/62c5fe7229b0e3332d2223b963ff343267c46cf380a458494d48cf4b6d50/fckitlib-0.14.1.9-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:a3a5ba6a89383a81948905d45a92d051187b572ed1a6e0fbf65d21ea309f79eb", size = 1393875, upload-time = "2026-01-26T16:54:04.268Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/80/cfee6627003d41f89cd012e0e75b6ea524ffc71ba8bf5a83f18dcbb21ce0/fckitlib-0.14.1.9-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:f074feb043963149f478b0a9f12f4a151ba8581fcc8f087e15b182c9101971bd", size = 12810382, upload-time = "2026-01-26T17:00:37.208Z" },
 ]
 
 [[package]]
@@ -3467,6 +3525,7 @@ dependencies = [
     { name = "atlite" },
     { name = "cdsapi" },
     { name = "cfgrib" },
+    { name = "eccodeslib" },
     { name = "fastapi", extra = ["standard"] },
     { name = "jupyter" },
     { name = "kaleido" },
@@ -3494,6 +3553,7 @@ requires-dist = [
     { name = "atlite", specifier = "==0.4.1" },
     { name = "cdsapi", specifier = "==0.7.7" },
     { name = "cfgrib", specifier = "==0.9.15.1" },
+    { name = "eccodeslib", specifier = "==2.43.0" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.128.4" },
     { name = "jupyter", specifier = "==1.1.1" },
     { name = "kaleido", specifier = "==1.2.0" },

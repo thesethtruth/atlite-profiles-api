@@ -38,6 +38,17 @@ All matching `.nc` files are globbed and exposed as:
 - `GET /cutouts` response items
 - OpenAPI enum values for `POST /generate` request field `cutouts`
 
+In Docker Compose, host `/cutouts` is mounted as container `/data`, and
+`config/api.yaml` includes `/data` as a default cutout source.
+
+During startup, the API also attempts to inspect metadata for each discovered
+cutout and stores it in shared app state for reuse across requests.
+
+`POST /generate` validates requested coordinates against cached cutout bounds
+(`x`/`y`) before running generation. If any selected cutout is out of bounds,
+the endpoint returns `422` immediately with the offending cutout name(s) and
+their bounds.
+
 ### Example Request
 
 ```bash

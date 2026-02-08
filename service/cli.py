@@ -299,6 +299,81 @@ def _load_yaml_mapping(path: Path, *, param_hint: str, label: str) -> dict[str, 
     return loaded
 
 
+def _format_validation_value(value: object) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value) if value else "-"
+    return str(value)
+
+
+def _validation_metadata_table(metadata: dict[str, object]) -> Table:
+    table = Table.grid(padding=(0, 1))
+    table.add_column(style="bold cyan")
+    table.add_column(overflow="fold")
+    for key in ("module", "x", "y", "time", "features"):
+        table.add_row(key, _format_validation_value(metadata.get(key)))
+    return table
+
+
+def _render_validation_report_details(validation_report: dict[str, object]) -> None:
+    entries = validation_report.get("entries")
+    if not isinstance(entries, list) or len(entries) == 0:
+        return
+
+    console.print()
+    console.print("[bold]Validation details:[/bold]")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
+        expected = entry.get("expected")
+        observed = entry.get("observed")
+        if not isinstance(expected, dict):
+            expected = {}
+        if not isinstance(observed, dict):
+            observed = {}
+
+        entry_name = str(entry.get("name") or entry.get("filename") or "cutout")
+        status = str(entry.get("status") or "unknown")
+        path = str(entry.get("path") or "-")
+
+        left_card = Panel(
+            _validation_metadata_table(expected),
+            title="Config (Expected)",
+            border_style="cyan",
+            expand=True,
+        )
+
+        right_content: Table | str = _validation_metadata_table(observed)
+        if status == "missing":
+            right_content = f"Local cutout missing at {path}"
+        elif status == "remote_skipped":
+            right_content = f"Remote target skipped: {path}"
+        elif status == "error":
+            right_content = f"Validation error: {entry.get('error', '-')}"
+        border_style = "green" if status == "match" else "yellow"
+        if status == "mismatch":
+            border_style = "red"
+        right_card = Panel(
+            right_content,
+            title=f"Found ({status})",
+            border_style=border_style,
+            expand=True,
+        )
+
+        console.print(f"[bold]{entry_name}[/bold] ({status})")
+        console.print(Columns([left_card, right_card], equal=True, expand=True))
+        if status == "mismatch":
+            mismatches = entry.get("mismatches")
+            if isinstance(mismatches, list) and mismatches:
+                console.print("[yellow]Mismatches:[/yellow]")
+                for mismatch in mismatches:
+                    console.print(f"- {mismatch}")
+        console.print(f"[dim]Path:[/dim] {path}")
+        console.print()
+
+
 @app.command("generate")
 def generate(
     profile_type: Annotated[
@@ -633,6 +708,7 @@ def fetch_cutouts_command(
             f"remote_skipped={validation_report['remote_skipped']}, "
             f"errors={validation_report['errors']}"
         )
+        _render_validation_report_details(validation_report)
 
 
 if __name__ == "__main__":

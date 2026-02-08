@@ -8,7 +8,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from core.catalog import get_available_solar_technologies, get_available_turbines
-from core.models import CutoutCatalogEntry
+from core.models import CutoutCatalogEntry, CutoutInspectResponse
+from service.api.cutout_metadata import inspect_cutout_metadata
 
 
 class CatalogSnapshot(BaseModel):
@@ -16,6 +17,7 @@ class CatalogSnapshot(BaseModel):
     available_solar_technologies: list[str] = Field(default_factory=list)
     available_cutouts: list[str] = Field(default_factory=list)
     cutout_entries: list[CutoutCatalogEntry] = Field(default_factory=list)
+    cutout_metadata: dict[str, CutoutInspectResponse] = Field(default_factory=dict)
 
 
 class ApiConfig(BaseModel):
@@ -71,12 +73,23 @@ def load_catalog_snapshot() -> CatalogSnapshot:
         solar_technologies = []
 
     available_cutouts, cutout_entries = _discover_cutouts(config.cutout_sources)
+    cutout_metadata: dict[str, CutoutInspectResponse] = {}
+    for entry in cutout_entries:
+        try:
+            cutout_metadata[entry.name] = inspect_cutout_metadata(
+                Path(entry.path), name=entry.name
+            )
+        except Exception:
+            # Keep startup resilient: metadata is best-effort and can be missing for
+            # invalid or partially written files.
+            continue
 
     return CatalogSnapshot(
         available_turbines=turbines,
         available_solar_technologies=solar_technologies,
         available_cutouts=available_cutouts,
         cutout_entries=cutout_entries,
+        cutout_metadata=cutout_metadata,
     )
 
 
@@ -88,6 +101,7 @@ def apply_catalog_snapshot(app: FastAPI, snapshot: CatalogSnapshot) -> None:
     app.state.available_solar_technologies = list(snapshot.available_solar_technologies)
     app.state.available_cutouts = list(snapshot.available_cutouts)
     app.state.cutout_entries = list(snapshot.cutout_entries)
+    app.state.cutout_metadata = dict(snapshot.cutout_metadata)
 
 
 def get_catalog_snapshot(app: FastAPI) -> CatalogSnapshot:
@@ -102,4 +116,5 @@ def get_catalog_snapshot(app: FastAPI) -> CatalogSnapshot:
         ),
         available_cutouts=list(getattr(app.state, "available_cutouts", [])),
         cutout_entries=list(getattr(app.state, "cutout_entries", [])),
+        cutout_metadata=dict(getattr(app.state, "cutout_metadata", {})),
     )

@@ -16,7 +16,7 @@ docker compose up --build
 
 Mounted volumes:
 
-- `./data:/app/data`
+- `/cutouts:/data`
 - `./output:/app/output`
 
 ## Run Without Compose
@@ -24,7 +24,7 @@ Mounted volumes:
 ```bash
 docker build -t renewables-profiles .
 docker run --rm -p 8085:8085 \
-  -v "$(pwd)/data:/app/data" \
+  -v "/cutouts:/data" \
   -v "$(pwd)/output:/app/output" \
   renewables-profiles
 ```

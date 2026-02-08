@@ -205,19 +205,40 @@ def _close_enough(a: float, b: float, *, tolerance: float = 1e-6) -> bool:
     return abs(a - b) <= tolerance
 
 
+def _expected_cutout_metadata(entry: CutoutFetchConfigEntry) -> dict[str, Any]:
+    return {
+        "module": str(entry.cutout.get("module", "")),
+        "x": _to_float_list(entry.cutout.get("x")),
+        "y": _to_float_list(entry.cutout.get("y")),
+        "time": _normalize_time(entry.cutout.get("time")),
+        "features": sorted(
+            str(item)
+            for item in entry.prepare.get("features", [])  # type: ignore[arg-type]
+        ),
+    }
+
+
 def _compare_cutout_to_config(
     entry: CutoutFetchConfigEntry, *, local_file: Path
 ) -> dict[str, Any]:
     observed = inspect_cutout_metadata(local_file, name=entry.filename)
     mismatches: list[str] = []
+    expected = _expected_cutout_metadata(entry)
+    found = {
+        "module": observed.cutout.module,
+        "x": observed.cutout.x,
+        "y": observed.cutout.y,
+        "time": _normalize_time(observed.cutout.time),
+        "features": sorted(observed.prepare.features),
+    }
 
-    expected_module = str(entry.cutout.get("module", ""))
+    expected_module = expected["module"]
     if observed.cutout.module != expected_module:
         mismatches.append(
             f"module (expected={expected_module}, actual={observed.cutout.module})"
         )
 
-    expected_x = _to_float_list(entry.cutout.get("x"))
+    expected_x = expected["x"]
     if len(expected_x) == 2:
         if not (
             _close_enough(observed.cutout.x[0], expected_x[0])
@@ -225,7 +246,7 @@ def _compare_cutout_to_config(
         ):
             mismatches.append(f"x (expected={expected_x}, actual={observed.cutout.x})")
 
-    expected_y = _to_float_list(entry.cutout.get("y"))
+    expected_y = expected["y"]
     if len(expected_y) == 2:
         if not (
             _close_enough(observed.cutout.y[0], expected_y[0])
@@ -233,12 +254,12 @@ def _compare_cutout_to_config(
         ):
             mismatches.append(f"y (expected={expected_y}, actual={observed.cutout.y})")
 
-    expected_time = _normalize_time(entry.cutout.get("time"))
+    expected_time = expected["time"]
     actual_time = _normalize_time(observed.cutout.time)
     if expected_time != actual_time:
         mismatches.append(f"time (expected={expected_time}, actual={actual_time})")
 
-    expected_features = sorted(str(item) for item in entry.prepare.get("features", []))
+    expected_features = expected["features"]
     actual_features = sorted(observed.prepare.features)
     if expected_features != actual_features:
         mismatches.append(
@@ -251,6 +272,8 @@ def _compare_cutout_to_config(
         "path": str(local_file),
         "status": "match" if not mismatches else "mismatch",
         "mismatches": mismatches,
+        "expected": expected,
+        "observed": found,
     }
 
 
@@ -309,6 +332,7 @@ def fetch_cutouts(
                         "filename": filename,
                         "path": destination,
                         "status": "remote_skipped",
+                        "expected": _expected_cutout_metadata(entry),
                     }
                 )
             elif exists:
@@ -323,6 +347,7 @@ def fetch_cutouts(
                             "path": str(local_file),
                             "status": "error",
                             "error": str(exc),
+                            "expected": _expected_cutout_metadata(entry),
                         }
                     )
                 else:
@@ -340,6 +365,7 @@ def fetch_cutouts(
                         "filename": filename,
                         "path": str(local_file),
                         "status": "missing",
+                        "expected": _expected_cutout_metadata(entry),
                     }
                 )
 

@@ -220,6 +220,50 @@ def test_generate_endpoint_unknown_cutout_rejected(monkeypatch):
     assert "Unknown cutout(s): unknown.nc." in response.json()["detail"]
 
 
+def test_generate_endpoint_out_of_bounds_rejected(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=[],
+            available_cutouts=["known.nc"],
+            cutout_metadata={
+                "known.nc": CutoutInspectResponse(
+                    filename="known.nc",
+                    path="/tmp/known.nc",
+                    cutout=CutoutDefinition(
+                        module="era5",
+                        x=[1.0, 2.0],
+                        y=[3.0, 4.0],
+                        time="2024",
+                    ),
+                    prepare=CutoutPrepareConfig(features=["wind"]),
+                    inferred=True,
+                )
+            },
+        ),
+    )
+
+    payload = {
+        "profile_type": "both",
+        "latitude": 10.0,
+        "longitude": 10.0,
+        "base_path": ".",
+        "output_dir": "output",
+        "cutouts": ["known.nc"],
+        "turbine_model": "ModelA",
+        "slopes": [30.0],
+        "azimuths": [180.0],
+        "panel_model": "CSi",
+        "visualize": False,
+    }
+    response = client.post("/generate", json=payload)
+
+    assert response.status_code == 422
+    assert "outside cutout bounds" in response.json()["detail"]
+    assert "known.nc" in response.json()["detail"]
+
+
 def test_turbine_inspect_endpoint(monkeypatch):
     apply_catalog_snapshot(
         api.app,

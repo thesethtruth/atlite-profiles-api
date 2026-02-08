@@ -27,6 +27,21 @@ def test_load_catalog_snapshot_discovers_cutouts_from_sources(tmp_path, monkeypa
         "service.api.catalog.get_available_solar_technologies",
         lambda: ["S1"],
     )
+    monkeypatch.setattr(
+        "service.api.catalog.inspect_cutout_metadata",
+        lambda path, *, name: {
+            "filename": name,
+            "path": str(path),
+            "cutout": {
+                "module": "era5",
+                "x": [1.0, 2.0],
+                "y": [3.0, 4.0],
+                "time": "2024",
+            },
+            "prepare": {"features": ["wind"]},
+            "inferred": True,
+        },
+    )
 
     snapshot = load_catalog_snapshot()
 
@@ -36,6 +51,7 @@ def test_load_catalog_snapshot_discovers_cutouts_from_sources(tmp_path, monkeypa
     paths = {entry.name: entry.path for entry in snapshot.cutout_entries}
     assert paths["a.nc"].endswith("/data/a.nc")
     assert paths["c.nc"].endswith("/nested/c.nc")
+    assert sorted(snapshot.cutout_metadata.keys()) == ["a.nc", "c.nc"]
 
 
 def test_load_catalog_snapshot_handles_missing_api_config(tmp_path, monkeypatch):
@@ -47,6 +63,21 @@ def test_load_catalog_snapshot_handles_missing_api_config(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "service.api.catalog.get_available_solar_technologies",
         lambda: [],
+    )
+    monkeypatch.setattr(
+        "service.api.catalog.inspect_cutout_metadata",
+        lambda _path, *, name: {
+            "filename": name,
+            "path": "/tmp/missing.nc",
+            "cutout": {
+                "module": "era5",
+                "x": [0.0, 1.0],
+                "y": [0.0, 1.0],
+                "time": "2024",
+            },
+            "prepare": {"features": []},
+            "inferred": True,
+        },
     )
 
     snapshot = load_catalog_snapshot()

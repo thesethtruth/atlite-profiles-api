@@ -412,6 +412,20 @@ def test_fetch_cutouts_validation_report_for_existing_local_file(tmp_path, monke
     assert report["matched"] == 1
     assert report["mismatched"] == 0
     assert report["missing"] == 0
+    assert report["entries"][0]["expected"] == {
+        "module": "era5",
+        "x": [1.0, 2.0],
+        "y": [3.0, 4.0],
+        "time": "2024",
+        "features": ["wind"],
+    }
+    assert report["entries"][0]["observed"] == {
+        "module": "era5",
+        "x": [1.0, 2.0],
+        "y": [3.0, 4.0],
+        "time": "2024",
+        "features": ["wind"],
+    }
 
 
 def test_fetch_cutouts_skips_existing_unless_force_refresh(tmp_path, monkeypatch):
