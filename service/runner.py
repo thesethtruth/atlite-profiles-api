@@ -10,16 +10,20 @@ from typing import Any
 
 import yaml
 
+from core import technology as technology_core
+from core.catalog import (
+    fetch_atlite_solar_paths,
+    fetch_atlite_solar_technologies,
+    fetch_atlite_turbine_paths,
+    fetch_atlite_turbines,
+)
 from core.models import (
     CutoutFetchConfig,
     CutoutFetchConfigEntry,
     GenerateProfilesRequest,
     GenerateProfilesResponse,
     SolarCatalogResponse,
-    SolarInspectResponse,
-    SolarTechnologyConfig,
     TurbineCatalogResponse,
-    TurbineInspectResponse,
 )
 
 TurbineCatalog = dict[str, list[str]]
@@ -47,213 +51,33 @@ def _list_local_yaml_names(directory: str) -> list[str]:
 
 
 def _fetch_atlite_turbines() -> list[str]:
-    import atlite.resource
-
-    return sorted(set(atlite.resource.windturbines.keys()))
+    return fetch_atlite_turbines()
 
 
 def _fetch_atlite_turbine_paths() -> dict[str, Path]:
-    import atlite.resource
-
-    return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
+    return fetch_atlite_turbine_paths()
 
 
 def _fetch_atlite_solar_technologies() -> list[str]:
-    import atlite.resource
-
-    return sorted(set(atlite.resource.solarpanels.keys()))
+    return fetch_atlite_solar_technologies()
 
 
 def _fetch_atlite_solar_paths() -> dict[str, Path]:
-    import atlite.resource
-
-    return {name: Path(path) for name, path in atlite.resource.solarpanels.items()}
-
-
-def _to_float(value: object) -> float | None:
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
-def _value_to_mw(value: float) -> float:
-    # Turbine YAMLs can store power in kW (e.g. 5600) or MW (e.g. 5.6).
-    if value > 100:
-        return value / 1000.0
-    return value
-
-
-def _infer_power_scale(payload: dict[str, object]) -> float:
-    """
-    Infer a single power unit scale for the full turbine payload.
-    Returns 1.0 when values already look like MW, or 0.001 when values look like kW.
-    """
-    values: list[float] = []
-
-    p_value = _to_float(payload.get("P"))
-    if p_value is not None:
-        values.append(abs(p_value))
-
-    pow_values = payload.get("POW")
-    if isinstance(pow_values, list):
-        for item in pow_values:
-            numeric = _to_float(item)
-            if numeric is not None:
-                values.append(abs(numeric))
-
-    if not values:
-        return 1.0
-
-    # kW-style payloads have magnitudes in the hundreds/thousands.
-    if max(values) > 100:
-        return 0.001
-    return 1.0
-
-
-def _resolve_technology_file(
-    technology: str,
-    *,
-    local_dir: str,
-    atlite_paths_fetcher,
-    not_found_label: str,
-) -> tuple[str, Path]:
-    local_file = Path(local_dir) / f"{technology}.yaml"
-    if local_file.exists():
-        return "custom", local_file
-
-    try:
-        atlite_files = atlite_paths_fetcher()
-    except Exception:
-        atlite_files = {}
-
-    atlite_file = atlite_files.get(technology)
-    if atlite_file is not None and atlite_file.exists():
-        return "atlite", atlite_file
-
-    raise ValueError(f"{not_found_label} '{technology}' was not found.")
-
-
-def _display_definition_file(
-    *,
-    source_kind: str,
-    source_file: Path,
-    technology: str,
-    atlite_resource_kind: str,
-) -> str:
-    if source_kind == "atlite":
-        return f"atlite/resources/{atlite_resource_kind}/{technology}"
-    try:
-        return str(source_file.relative_to(Path.cwd()))
-    except ValueError:
-        return str(source_file)
-
-
-def _to_curve_points(payload: dict[str, object]) -> list[dict[str, float]]:
-    speeds = payload.get("V")
-    powers = payload.get("POW")
-    if not isinstance(speeds, list) or not isinstance(powers, list):
-        return []
-
-    power_scale = _infer_power_scale(payload)
-    points: list[dict[str, float]] = []
-    for speed, power in zip(speeds, powers):
-        speed_value = _to_float(speed)
-        power_value = _to_float(power)
-        if speed_value is None or power_value is None:
-            continue
-        points.append({"speed": speed_value, "power_mw": power_value * power_scale})
-
-    return points
-
-
-def _rated_power_mw(payload: dict[str, object]) -> float | None:
-    power_scale = _infer_power_scale(payload)
-    p_value = _to_float(payload.get("P"))
-    if p_value is not None:
-        return p_value * power_scale
-
-    curve_points = _to_curve_points(payload)
-    if curve_points:
-        return max(point["power_mw"] for point in curve_points)
-
-    return None
+    return fetch_atlite_solar_paths()
 
 
 def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
-    source_kind, source_file = _resolve_technology_file(
+    return technology_core.inspect_turbine(
         turbine_model,
-        local_dir="config/wind",
         atlite_paths_fetcher=_fetch_atlite_turbine_paths,
-        not_found_label="Turbine",
     )
-    with source_file.open(encoding="utf-8") as handle:
-        payload = yaml.safe_load(handle)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Turbine '{turbine_model}' has an invalid definition file.")
-
-    curve = _to_curve_points(payload)
-    speeds = [point["speed"] for point in curve]
-
-    response = TurbineInspectResponse(
-        status="ok",
-        turbine=turbine_model,
-        metadata={
-            "name": str(payload.get("name") or turbine_model),
-            "manufacturer": str(payload.get("manufacturer") or "unknown"),
-            "source": str(payload.get("source") or source_kind),
-            "provider": source_kind,
-            "hub_height_m": _to_float(payload.get("HUB_HEIGHT")),
-            "rated_power_mw": _rated_power_mw(payload),
-            "definition_file": _display_definition_file(
-                source_kind=source_kind,
-                source_file=source_file,
-                technology=turbine_model,
-                atlite_resource_kind="windturbine",
-            ),
-        },
-        curve=curve,
-        curve_summary={
-            "point_count": len(curve),
-            "speed_min": min(speeds) if speeds else None,
-            "speed_max": max(speeds) if speeds else None,
-        },
-    )
-    return response.model_dump()
 
 
 def inspect_solar_technology(technology: str) -> SolarInspectPayload:
-    source_kind, source_file = _resolve_technology_file(
+    return technology_core.inspect_solar_technology(
         technology,
-        local_dir="config/solar",
         atlite_paths_fetcher=_fetch_atlite_solar_paths,
-        not_found_label="Solar technology",
     )
-    with source_file.open(encoding="utf-8") as handle:
-        payload = yaml.safe_load(handle)
-    if not isinstance(payload, dict):
-        raise ValueError(
-            f"Solar technology '{technology}' has an invalid definition file."
-        )
-
-    config = SolarTechnologyConfig.from_payload(payload, default_name=technology)
-    response = SolarInspectResponse(
-        status="ok",
-        technology=technology,
-        metadata={
-            "name": config.name,
-            "manufacturer": config.manufacturer or "unknown",
-            "source": config.source or source_kind,
-            "provider": source_kind,
-            "definition_file": _display_definition_file(
-                source_kind=source_kind,
-                source_file=source_file,
-                technology=technology,
-                atlite_resource_kind="solarpanel",
-            ),
-        },
-        parameters=config.parameters(),
-    )
-    return response.model_dump()
 
 
 def get_turbine_catalog() -> TurbineCatalog:

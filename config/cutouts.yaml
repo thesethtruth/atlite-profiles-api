@@ -5,8 +5,8 @@ cutouts:
       module: era5
       x: [2.5, 7.5]
       y: [50.5, 54.0]
-      time: "2012"
+      time: "2012-01"
       chunks:
-        time: 100
+        time: 30
     prepare:
       features: [height, wind, influx, temperature]

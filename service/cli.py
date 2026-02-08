@@ -10,9 +10,19 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from core.catalog import (
+    configure_downstream_warning_filters,
+    fetch_atlite_solar_paths,
+    fetch_atlite_turbine_paths,
+)
+from core.technology import (
+    to_float as _to_float,
+)
+from core.technology import (
+    turbine_metrics_from_file as _turbine_metrics_numeric,
+)
 from service.logging_utils import configure_logging
 from service.runner import (
-    _configure_downstream_warning_filters,
     fetch_cutouts,
     get_solar_catalog,
     get_turbine_catalog,
@@ -33,48 +43,10 @@ class SortBy(str, Enum):
     power = "power"
 
 
-def _to_float(value: object) -> float | None:
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
 def _format_number(value: float | None, *, digits: int = 3) -> str:
     if value is None:
         return "-"
     return f"{value:.{digits}f}".rstrip("0").rstrip(".")
-
-
-def _value_to_mw(value: float) -> float:
-    # Turbine YAMLs can store power in kW (e.g. 5600) or MW (e.g. 5.6).
-    if value > 100:
-        return value / 1000.0
-    return value
-
-
-def _infer_power_scale(payload: dict[str, object]) -> float:
-    """
-    Infer a single power unit scale for a full turbine payload.
-    Returns 1.0 for MW-style values and 0.001 for kW-style values.
-    """
-    values: list[float] = []
-
-    p_value = _to_float(payload.get("P"))
-    if p_value is not None:
-        values.append(abs(p_value))
-
-    pow_values = payload.get("POW")
-    if isinstance(pow_values, list):
-        for item in pow_values:
-            numeric = _to_float(item)
-            if numeric is not None:
-                values.append(abs(numeric))
-
-    if not values:
-        return 1.0
-    if max(values) > 100:
-        return 0.001
-    return 1.0
 
 
 def _to_sort_float(value: str) -> float | None:
@@ -84,37 +56,8 @@ def _to_sort_float(value: str) -> float | None:
         return None
 
 
-def _rated_power_mw(payload: dict[str, object]) -> float | None:
-    power_scale = _infer_power_scale(payload)
-    p_value = _to_float(payload.get("P"))
-    pow_values = payload.get("POW")
-    max_pow: float | None = None
-    if isinstance(pow_values, list):
-        float_values = [
-            float(item) for item in pow_values if isinstance(item, (int, float))
-        ]
-        if float_values:
-            max_pow = max(float_values)
-
-    if p_value is not None:
-        return p_value * power_scale
-    if max_pow is not None:
-        return max_pow * power_scale
-    return None
-
-
 def _turbine_metrics_from_file(path: Path | None) -> tuple[str, str]:
-    if path is None or not path.exists():
-        return "-", "-"
-    try:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except OSError:
-        return "-", "-"
-    if not isinstance(payload, dict):
-        return "-", "-"
-
-    rated_power = _rated_power_mw(payload)
-    hub_height = _to_float(payload.get("HUB_HEIGHT"))
+    rated_power, hub_height = _turbine_metrics_numeric(path)
     return _format_number(rated_power), _format_number(hub_height, digits=1)
 
 
@@ -144,20 +87,18 @@ def _sort_turbine_rows(
 
 def _atlite_turbine_files() -> dict[str, Path]:
     try:
-        _configure_downstream_warning_filters()
-        import atlite.resource
+        configure_downstream_warning_filters()
     except Exception:
         return {}
-    return {name: Path(path) for name, path in atlite.resource.windturbines.items()}
+    return fetch_atlite_turbine_paths()
 
 
 def _atlite_solar_files() -> dict[str, Path]:
     try:
-        _configure_downstream_warning_filters()
-        import atlite.resource
+        configure_downstream_warning_filters()
     except Exception:
         return {}
-    return {name: Path(path) for name, path in atlite.resource.solarpanels.items()}
+    return fetch_atlite_solar_paths()
 
 
 def _render_power_curve_chart(
@@ -345,6 +286,19 @@ def _solar_parameters_table(payload: dict[str, object]) -> Table:
     return table
 
 
+def _load_yaml_mapping(path: Path, *, param_hint: str, label: str) -> dict[str, object]:
+    try:
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise typer.BadParameter(str(exc), param_hint=param_hint)
+    if not isinstance(loaded, dict):
+        raise typer.BadParameter(
+            f"{label} YAML must contain an object.",
+            param_hint=param_hint,
+        )
+    return loaded
+
+
 @app.command("generate")
 def generate(
     profile_type: Annotated[
@@ -392,33 +346,19 @@ def generate(
 ) -> None:
     turbine_config: dict[str, object] | None = None
     if turbine_config_file is not None:
-        try:
-            loaded = yaml.safe_load(turbine_config_file.read_text(encoding="utf-8"))
-        except OSError as exc:
-            raise typer.BadParameter(str(exc), param_hint="turbine-config-file")
-        if not isinstance(loaded, dict):
-            raise typer.BadParameter(
-                "Turbine config YAML must contain an object.",
-                param_hint="turbine-config-file",
-            )
-        turbine_config = loaded
+        turbine_config = _load_yaml_mapping(
+            turbine_config_file,
+            param_hint="turbine-config-file",
+            label="Turbine config",
+        )
 
     solar_technology_config: dict[str, object] | None = None
     if solar_technology_config_file is not None:
-        try:
-            loaded = yaml.safe_load(
-                solar_technology_config_file.read_text(encoding="utf-8")
-            )
-        except OSError as exc:
-            raise typer.BadParameter(
-                str(exc), param_hint="solar-technology-config-file"
-            )
-        if not isinstance(loaded, dict):
-            raise typer.BadParameter(
-                "Solar technology config YAML must contain an object.",
-                param_hint="solar-technology-config-file",
-            )
-        solar_technology_config = loaded
+        solar_technology_config = _load_yaml_mapping(
+            solar_technology_config_file,
+            param_hint="solar-technology-config-file",
+            label="Solar technology config",
+        )
 
     result = run_profiles(
         profile_type=profile_type,

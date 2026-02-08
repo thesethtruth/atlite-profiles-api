@@ -7,8 +7,8 @@ import yaml
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from core.catalog import get_available_solar_technologies, get_available_turbines
 from core.models import CutoutCatalogEntry
-from service.runner import get_available_solar_technologies, get_available_turbines
 
 
 class CatalogSnapshot(BaseModel):
