@@ -50,6 +50,11 @@ def configure_openapi_dynamic_enums(app: FastAPI) -> None:
             version=app.version,
             routes=app.routes,
             description=app.description,
+            servers=(
+                [{"url": app.root_path}]
+                if isinstance(app.root_path, str) and app.root_path
+                else None
+            ),
         )
 
         catalog = get_catalog_snapshot(app)

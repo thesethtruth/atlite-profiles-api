@@ -434,3 +434,11 @@ def test_openapi_contains_enum_for_inspect_path_params():
     assert turbine_enum == ["T1", "T2"]
     assert solar_enum == ["CSi", "CdTe"]
     assert cutout_enum == ["c1.nc", "c2.nc"]
+
+
+def test_openapi_declares_api_root_path_server():
+    api.app.openapi_schema = None
+
+    schema = client.get("/openapi.json").json()
+
+    assert schema["servers"] == [{"url": "/api"}]
