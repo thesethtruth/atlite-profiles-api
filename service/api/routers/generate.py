@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Body, HTTPException, Request
 
 from core.models import GenerateProfilesResponse
@@ -106,7 +108,7 @@ def generate(
         profile_type=request_payload.profile_type,
         latitude=request_payload.latitude,
         longitude=request_payload.longitude,
-        base_path=request_payload.base_path,
+        base_path=Path("."),
         output_dir=request_payload.output_dir,
         cutouts=resolved_cutouts,
         turbine_model=request_payload.turbine_model,

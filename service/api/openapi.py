@@ -40,6 +40,24 @@ def _set_generate_cutouts_enum(
         cutouts["default"] = [values[0]]
 
 
+def _set_generate_example_cutout(
+    openapi_schema: dict[str, Any], *, values: list[str]
+) -> None:
+    if not values:
+        return
+    operation = openapi_schema.get("paths", {}).get("/generate", {}).get("post", {})
+    examples = (
+        operation.get("requestBody", {})
+        .get("content", {})
+        .get("application/json", {})
+        .get("examples", {})
+    )
+    inline_example = examples.get("inline_custom_wind_and_solar", {})
+    value = inline_example.get("value", {})
+    if isinstance(value, dict):
+        value["cutouts"] = [values[0]]
+
+
 def configure_openapi_dynamic_enums(app: FastAPI) -> None:
     def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema is not None:
@@ -82,6 +100,10 @@ def configure_openapi_dynamic_enums(app: FastAPI) -> None:
         _set_generate_cutouts_enum(
             openapi_schema,
             schema_name="GenerateRequest",
+            values=list(catalog.available_cutouts),
+        )
+        _set_generate_example_cutout(
+            openapi_schema,
             values=list(catalog.available_cutouts),
         )
 

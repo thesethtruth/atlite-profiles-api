@@ -30,5 +30,5 @@ docker compose up --build
 
 ## Data Requirement
 
-Provide ERA5 NetCDF cutouts (for example `europe-2024-era5.nc`) and pass their base directory as `base_path`.
+Provide ERA5 NetCDF cutouts (for example `europe-2024-era5.nc`) and configure API cutout discovery via `config/api.yaml`.
 You can also create/fetch cutouts from CLI using `profiles-cli fetch-cutouts --all` with `config/cutouts.yaml`.

@@ -33,14 +33,18 @@ class WindTurbineConfig(BaseModel):
         return self
 
     def to_atlite_turbine(self) -> dict[str, object]:
+        rated_power = (
+            self.rated_power_mw
+            if self.rated_power_mw is not None
+            else max(self.power_curve_mw)
+        )
         payload: dict[str, object] = {
             "name": self.name,
             "HUB_HEIGHT": self.hub_height_m,
             "V": self.wind_speeds,
             "POW": self.power_curve_mw,
+            "P": rated_power,
         }
-        if self.rated_power_mw is not None:
-            payload["P"] = self.rated_power_mw
         if self.manufacturer is not None:
             payload["manufacturer"] = self.manufacturer
         if self.source is not None:

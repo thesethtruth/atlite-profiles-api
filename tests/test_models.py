@@ -19,6 +19,7 @@ def test_wind_turbine_config_to_atlite_turbine():
     assert payload["HUB_HEIGHT"] == 120
     assert payload["V"] == [0, 10, 20]
     assert payload["POW"] == [0, 2, 4]
+    assert payload["P"] == 4
     assert payload["manufacturer"] == "ACME"
     assert payload["source"] == "api"
 

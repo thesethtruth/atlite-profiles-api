@@ -8,7 +8,6 @@ GENERATE_INLINE_EXAMPLE = {
     "profile_type": "both",
     "latitude": 52.0,
     "longitude": 5.0,
-    "base_path": "data",
     "output_dir": "output",
     "cutouts": ["europe-2024-era5.nc"],
     "turbine_model": "NREL_ReferenceTurbine_2020ATB_4MW",
@@ -17,6 +16,7 @@ GENERATE_INLINE_EXAMPLE = {
         "hub_height_m": 120.0,
         "wind_speeds": [0, 5, 10, 15, 25],
         "power_curve_mw": [0, 0.2, 1.8, 3.9, 4.0],
+        "rated_power_mw": 4.0,
         "manufacturer": "ACME",
         "source": "api",
     },
@@ -58,7 +58,6 @@ class GenerateRequest(BaseModel):
     profile_type: str = "both"
     latitude: float = 51.4713
     longitude: float = 5.4186
-    base_path: Path = Path("data")
     output_dir: Path = Path("output")
     cutouts: list[str] = Field(default_factory=lambda: ["europe-2024-era5.nc"])
     turbine_model: str = "NREL_ReferenceTurbine_2020ATB_4MW"
@@ -70,7 +69,8 @@ class GenerateRequest(BaseModel):
     visualize: bool = False
 
     model_config = {
+        "extra": "forbid",
         "json_schema_extra": {
             "examples": [GENERATE_INLINE_EXAMPLE],
-        }
+        },
     }

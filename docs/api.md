@@ -48,6 +48,8 @@ cutout and stores it in shared app state for reuse across requests.
 (`x`/`y`) before running generation. If any selected cutout is out of bounds,
 the endpoint returns `422` immediately with the offending cutout name(s) and
 their bounds.
+`base_path` is not accepted by the API; cutout paths are resolved from the
+startup catalog.
 
 ### Example Request
 
@@ -58,7 +60,6 @@ curl -X POST http://localhost:8000/generate \\
     "profile_type": "both",
     "latitude": 52.0,
     "longitude": 5.0,
-    "base_path": "/data",
     "output_dir": "output",
     "cutouts": ["europe-2024-era5.nc"],
     "turbine_model": "NREL_ReferenceTurbine_2020ATB_4MW",
@@ -79,6 +80,7 @@ curl -X POST http://localhost:8000/generate \\
     "hub_height_m": 120,
     "wind_speeds": [0, 10, 20],
     "power_curve_mw": [0, 2, 4],
+    "rated_power_mw": 4,
     "manufacturer": "ACME",
     "source": "api"
   }

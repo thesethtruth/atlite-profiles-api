@@ -156,7 +156,6 @@ def test_generate_endpoint(monkeypatch):
         "profile_type": "both",
         "latitude": 52.0,
         "longitude": 5.0,
-        "base_path": ".",
         "output_dir": "output",
         "cutouts": ["europe-2024-era5.nc"],
         "turbine_model": "ModelA",
@@ -212,7 +211,6 @@ def test_generate_endpoint_unknown_cutout_rejected(monkeypatch):
         "profile_type": "both",
         "latitude": 52.0,
         "longitude": 5.0,
-        "base_path": ".",
         "output_dir": "output",
         "cutouts": ["unknown.nc"],
         "turbine_model": "ModelA",
@@ -255,7 +253,6 @@ def test_generate_endpoint_out_of_bounds_rejected(monkeypatch):
         "profile_type": "both",
         "latitude": 10.0,
         "longitude": 10.0,
-        "base_path": ".",
         "output_dir": "output",
         "cutouts": ["known.nc"],
         "turbine_model": "ModelA",
@@ -383,7 +380,6 @@ def test_generate_endpoint_invalid_turbine_config():
         "profile_type": "wind",
         "latitude": 52.0,
         "longitude": 5.0,
-        "base_path": ".",
         "output_dir": "output",
         "cutouts": ["europe-2024-era5.nc"],
         "turbine_model": "ModelA",
@@ -437,10 +433,35 @@ def test_openapi_contains_enum_for_inspect_path_params():
     cutout_enum = schema["components"]["schemas"]["GenerateRequest"]["properties"][
         "cutouts"
     ]["items"]["enum"]
+    example_payload = schema["paths"]["/generate"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["examples"]["inline_custom_wind_and_solar"]["value"]
 
     assert turbine_enum == ["T1", "T2"]
     assert solar_enum == ["CSi", "CdTe"]
     assert cutout_enum == ["c1.nc", "c2.nc"]
+    assert example_payload["cutouts"] == ["c1.nc"]
+
+
+def test_generate_endpoint_rejects_base_path_field():
+    payload = {
+        "profile_type": "wind",
+        "latitude": 52.0,
+        "longitude": 5.0,
+        "base_path": "/data",
+        "output_dir": "output",
+        "cutouts": ["europe-2024-era5.nc"],
+        "turbine_model": "ModelA",
+        "slopes": [30.0],
+        "azimuths": [180.0],
+        "panel_model": "CSi",
+        "visualize": False,
+    }
+
+    response = client.post("/generate", json=payload)
+
+    assert response.status_code == 422
+    assert "extra_forbidden" in response.text
 
 
 def test_openapi_declares_api_root_path_server():
