@@ -3466,6 +3466,7 @@ source = { editable = "." }
 dependencies = [
     { name = "atlite" },
     { name = "cdsapi" },
+    { name = "cfgrib" },
     { name = "fastapi", extra = ["standard"] },
     { name = "jupyter" },
     { name = "kaleido" },
@@ -3492,6 +3493,7 @@ dev = [
 requires-dist = [
     { name = "atlite", specifier = "==0.4.1" },
     { name = "cdsapi", specifier = "==0.7.7" },
+    { name = "cfgrib", specifier = "==0.9.15.1" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.128.4" },
     { name = "jupyter", specifier = "==1.1.1" },
     { name = "kaleido", specifier = "==1.2.0" },
