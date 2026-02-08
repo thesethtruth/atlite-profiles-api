@@ -33,6 +33,9 @@ def test_load_catalog_snapshot_discovers_cutouts_from_sources(tmp_path, monkeypa
     assert snapshot.available_turbines == ["T1"]
     assert snapshot.available_solar_technologies == ["S1"]
     assert snapshot.available_cutouts == ["a.nc", "c.nc"]
+    paths = {entry.name: entry.path for entry in snapshot.cutout_entries}
+    assert paths["a.nc"].endswith("/data/a.nc")
+    assert paths["c.nc"].endswith("/nested/c.nc")
 
 
 def test_load_catalog_snapshot_handles_missing_api_config(tmp_path, monkeypatch):
@@ -49,3 +52,4 @@ def test_load_catalog_snapshot_handles_missing_api_config(tmp_path, monkeypatch)
     snapshot = load_catalog_snapshot()
 
     assert snapshot.available_cutouts == []
+    assert snapshot.cutout_entries == []

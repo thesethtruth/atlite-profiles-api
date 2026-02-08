@@ -1,7 +1,14 @@
 from fastapi.testclient import TestClient
 
+from core.models import (
+    CutoutCatalogEntry,
+    CutoutDefinition,
+    CutoutInspectResponse,
+    CutoutPrepareConfig,
+)
 from service import api
 from service.api.catalog import CatalogSnapshot, apply_catalog_snapshot
+from service.api.routers import cutouts as cutouts_router
 from service.api.routers import generate as generate_router
 from service.api.routers import solar as solar_router
 from service.api.routers import turbines as turbines_router
@@ -60,6 +67,60 @@ def test_cutouts_endpoint(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"items": ["a.nc", "b.nc"]}
+
+
+def test_cutout_inspect_endpoint(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=[],
+            available_cutouts=["a.nc"],
+            cutout_entries=[CutoutCatalogEntry(name="a.nc", path="/tmp/a.nc")],
+        ),
+    )
+    monkeypatch.setattr(
+        cutouts_router,
+        "inspect_cutout_metadata",
+        lambda _path, *, name: CutoutInspectResponse(
+            filename=name,
+            path="/tmp/a.nc",
+            cutout=CutoutDefinition(
+                module="era5",
+                x=[1.0, 2.0],
+                y=[3.0, 4.0],
+                dx=0.25,
+                dy=0.25,
+                time="2024",
+            ),
+            prepare=CutoutPrepareConfig(features=["height", "wind"]),
+            inferred=True,
+        ),
+    )
+
+    response = client.get("/cutouts/a.nc")
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "a.nc"
+    assert response.json()["cutout"]["dx"] == 0.25
+    assert response.json()["prepare"]["features"] == ["height", "wind"]
+
+
+def test_cutout_inspect_endpoint_not_found(monkeypatch):
+    apply_catalog_snapshot(
+        api.app,
+        CatalogSnapshot(
+            available_turbines=[],
+            available_solar_technologies=[],
+            available_cutouts=[],
+            cutout_entries=[],
+        ),
+    )
+
+    response = client.get("/cutouts/missing.nc")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Cutout 'missing.nc' was not found."
 
 
 def test_generate_endpoint(monkeypatch):

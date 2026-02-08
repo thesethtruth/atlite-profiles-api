@@ -7,6 +7,7 @@ import yaml
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from core.models import CutoutCatalogEntry
 from service.runner import get_available_solar_technologies, get_available_turbines
 
 
@@ -14,6 +15,7 @@ class CatalogSnapshot(BaseModel):
     available_turbines: list[str] = Field(default_factory=list)
     available_solar_technologies: list[str] = Field(default_factory=list)
     available_cutouts: list[str] = Field(default_factory=list)
+    cutout_entries: list[CutoutCatalogEntry] = Field(default_factory=list)
 
 
 class ApiConfig(BaseModel):
@@ -27,8 +29,8 @@ def _load_api_config(config_file: Path = Path("config/api.yaml")) -> ApiConfig:
     return ApiConfig.model_validate(payload or {})
 
 
-def _discover_cutouts(sources: list[str]) -> list[str]:
-    discovered: set[str] = set()
+def _discover_cutouts(sources: list[str]) -> tuple[list[str], list[CutoutCatalogEntry]]:
+    discovered: dict[str, Path] = {}
     for source in sources:
         if any(token in source for token in "*?[]"):
             matches = [Path(path) for path in glob(source, recursive=True)]
@@ -43,9 +45,16 @@ def _discover_cutouts(sources: list[str]) -> list[str]:
 
         for match in matches:
             if match.is_file() and match.suffix == ".nc":
-                discovered.add(match.name)
+                current = discovered.get(match.name)
+                resolved = match.resolve()
+                if current is None or str(resolved) < str(current):
+                    discovered[match.name] = resolved
 
-    return sorted(discovered)
+    names = sorted(discovered)
+    entries = [
+        CutoutCatalogEntry(name=name, path=str(discovered[name])) for name in names
+    ]
+    return names, entries
 
 
 def load_catalog_snapshot() -> CatalogSnapshot:
@@ -61,12 +70,13 @@ def load_catalog_snapshot() -> CatalogSnapshot:
     except Exception:
         solar_technologies = []
 
-    available_cutouts = _discover_cutouts(config.cutout_sources)
+    available_cutouts, cutout_entries = _discover_cutouts(config.cutout_sources)
 
     return CatalogSnapshot(
         available_turbines=turbines,
         available_solar_technologies=solar_technologies,
         available_cutouts=available_cutouts,
+        cutout_entries=cutout_entries,
     )
 
 
@@ -77,6 +87,7 @@ def apply_catalog_snapshot(app: FastAPI, snapshot: CatalogSnapshot) -> None:
     app.state.available_turbines = list(snapshot.available_turbines)
     app.state.available_solar_technologies = list(snapshot.available_solar_technologies)
     app.state.available_cutouts = list(snapshot.available_cutouts)
+    app.state.cutout_entries = list(snapshot.cutout_entries)
 
 
 def get_catalog_snapshot(app: FastAPI) -> CatalogSnapshot:
@@ -90,4 +101,5 @@ def get_catalog_snapshot(app: FastAPI) -> CatalogSnapshot:
             getattr(app.state, "available_solar_technologies", [])
         ),
         available_cutouts=list(getattr(app.state, "available_cutouts", [])),
+        cutout_entries=list(getattr(app.state, "cutout_entries", [])),
     )

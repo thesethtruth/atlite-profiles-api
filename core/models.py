@@ -267,6 +267,32 @@ class ListItemsResponse(BaseModel):
     items: list[str]
 
 
+class CutoutCatalogEntry(BaseModel):
+    name: str
+    path: str
+
+
+class CutoutDefinition(BaseModel):
+    module: str
+    x: list[float]
+    y: list[float]
+    dx: float | None = None
+    dy: float | None = None
+    time: str | list[str]
+
+
+class CutoutPrepareConfig(BaseModel):
+    features: list[str] = Field(default_factory=list)
+
+
+class CutoutInspectResponse(BaseModel):
+    filename: str
+    path: str
+    cutout: CutoutDefinition
+    prepare: CutoutPrepareConfig
+    inferred: bool = True
+
+
 class TurbineCatalogResponse(BaseModel):
     atlite: list[str]
     custom_turbines: list[str]

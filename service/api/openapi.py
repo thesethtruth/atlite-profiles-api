@@ -67,6 +67,13 @@ def configure_openapi_dynamic_enums(app: FastAPI) -> None:
             parameter_name="technology",
             values=list(catalog.available_solar_technologies),
         )
+        _set_openapi_path_param_enum(
+            openapi_schema,
+            path="/cutouts/{cutout_name}",
+            method="get",
+            parameter_name="cutout_name",
+            values=list(catalog.available_cutouts),
+        )
         _set_generate_cutouts_enum(
             openapi_schema,
             schema_name="GenerateRequest",
