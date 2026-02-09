@@ -58,9 +58,9 @@ def get_wind_profile(
 def get_solar_profile(
     lat: float,
     lon: float,
+    cutout_path: Path,
     slope: float = 30,
     azimuth: float = 180,
-    cutout_path: Path = Path("data/europe-2023-era5.nc"),
     panel_model: str | dict[str, object] = "CSi",
 ) -> pd.Series:
     """Generate solar profile time series for one location and orientation."""

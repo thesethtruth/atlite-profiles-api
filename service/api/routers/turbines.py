@@ -23,7 +23,6 @@ def turbine_inspect(turbine_model: str, request: Request) -> TurbineInspectRespo
         )
 
     try:
-        payload = inspect_turbine(turbine_model)
-        return TurbineInspectResponse.model_validate(payload)
+        return inspect_turbine(turbine_model)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

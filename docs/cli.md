@@ -11,7 +11,7 @@ uv run profiles-cli list-turbines --sort name
 uv run profiles-cli list-turbines --sort hub_height
 uv run profiles-cli list-turbines --sort power
 uv run profiles-cli list-solar-technologies
-uv run profiles-cli generate --profile-type both --base-path data --output-dir output --cutout europe-2024-era5.nc
+uv run profiles-cli generate --profile-type both --base-path data --output-dir output --cutout nl-2012-era5.nc
 uv run profiles-cli inspect-turbine Vestas_V162_5.6
 uv run profiles-cli inspect-solar-technology CSi
 uv run profiles-cli fetch-cutouts --all

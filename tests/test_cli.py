@@ -3,6 +3,17 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from core.models import (
+    CutoutFetchResponse,
+    CutoutValidationEntry,
+    CutoutValidationReport,
+    GenerateProfilesStoredResponse,
+    SolarCatalogResponse,
+    SolarInspectResponse,
+    TurbineCatalogResponse,
+    TurbineInspectResponse,
+)
+from core.storage import StorageConfig
 from service import cli
 
 runner = CliRunner()
@@ -11,13 +22,17 @@ runner = CliRunner()
 def test_generate_command(monkeypatch):
     def fake_run_profiles(**kwargs):
         assert kwargs["profile_type"] == "wind"
-        return {
-            "wind_profiles": 1,
-            "solar_profiles": 0,
-            "output_dir": "output",
-        }
+        assert isinstance(kwargs["storage"], StorageConfig)
+        return GenerateProfilesStoredResponse(
+            status="ok",
+            profile_type="wind",
+            wind_profiles=1,
+            solar_profiles=0,
+            output_dir="output",
+            stored_files=[],
+        )
 
-    monkeypatch.setattr(cli, "run_profiles", fake_run_profiles)
+    monkeypatch.setattr(cli, "generate_profiles_to_storage", fake_run_profiles)
 
     result = runner.invoke(cli.app, ["generate", "--profile-type", "wind"])
 
@@ -62,13 +77,16 @@ def test_generate_command_reads_config_files(tmp_path, monkeypatch):
 
     def fake_run_profiles(**kwargs):
         captured.update(kwargs)
-        return {
-            "wind_profiles": 1,
-            "solar_profiles": 1,
-            "output_dir": "output",
-        }
+        return GenerateProfilesStoredResponse(
+            status="ok",
+            profile_type="both",
+            wind_profiles=1,
+            solar_profiles=1,
+            output_dir="output",
+            stored_files=[],
+        )
 
-    monkeypatch.setattr(cli, "run_profiles", fake_run_profiles)
+    monkeypatch.setattr(cli, "generate_profiles_to_storage", fake_run_profiles)
 
     result = runner.invoke(
         cli.app,
@@ -82,8 +100,9 @@ def test_generate_command_reads_config_files(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 0
-    assert captured["turbine_config"]["name"] == "CLI_Custom"
-    assert captured["solar_technology_config"]["name"] == "CLI_Solar"
+    assert captured["turbine_config"].name == "CLI_Custom"
+    assert captured["solar_technology_config"].name == "CLI_Solar"
+    assert isinstance(captured["storage"], StorageConfig)
 
 
 def test_fetch_cutouts_command_with_config_file(monkeypatch, tmp_path):
@@ -102,11 +121,14 @@ def test_fetch_cutouts_command_with_config_file(monkeypatch, tmp_path):
         captured["force_refresh"] = force_refresh
         captured["name"] = name
         captured["report_validate_existing"] = report_validate_existing
-        return {
-            "fetched_count": 1,
-            "skipped_count": 0,
-            "validation_report": None,
-        }
+        return CutoutFetchResponse(
+            status="ok",
+            fetched=[],
+            skipped=[],
+            fetched_count=1,
+            skipped_count=0,
+            validation_report=None,
+        )
 
     monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
 
@@ -137,11 +159,14 @@ def test_fetch_cutouts_command_with_all_uses_default(monkeypatch):
         captured["force_refresh"] = force_refresh
         captured["name"] = name
         captured["report_validate_existing"] = report_validate_existing
-        return {
-            "fetched_count": 0,
-            "skipped_count": 2,
-            "validation_report": None,
-        }
+        return CutoutFetchResponse(
+            status="ok",
+            fetched=[],
+            skipped=[],
+            fetched_count=0,
+            skipped_count=2,
+            validation_report=None,
+        )
 
     monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
 
@@ -171,41 +196,44 @@ def test_fetch_cutouts_command_name_and_validation_report(monkeypatch, tmp_path)
         captured["force_refresh"] = force_refresh
         captured["name"] = name
         captured["report_validate_existing"] = report_validate_existing
-        return {
-            "fetched_count": 0,
-            "skipped_count": 1,
-            "validation_report": {
-                "checked": 1,
-                "matched": 1,
-                "mismatched": 0,
-                "missing": 0,
-                "remote_skipped": 0,
-                "errors": 0,
-                "entries": [
-                    {
-                        "name": "my-cutout",
-                        "filename": "my.nc",
-                        "path": "data/my.nc",
-                        "status": "match",
-                        "expected": {
+        return CutoutFetchResponse(
+            status="ok",
+            fetched=[],
+            skipped=["data/my.nc"],
+            fetched_count=0,
+            skipped_count=1,
+            validation_report=CutoutValidationReport(
+                checked=1,
+                matched=1,
+                mismatched=0,
+                missing=0,
+                remote_skipped=0,
+                errors=0,
+                entries=[
+                    CutoutValidationEntry(
+                        name="my-cutout",
+                        filename="my.nc",
+                        path="data/my.nc",
+                        status="match",
+                        expected={
                             "module": "era5",
                             "x": [1.0, 2.0],
                             "y": [3.0, 4.0],
                             "time": "2024",
                             "features": ["wind"],
                         },
-                        "observed": {
+                        observed={
                             "module": "era5",
                             "x": [1.0, 2.0],
                             "y": [3.0, 4.0],
                             "time": "2024",
                             "features": ["wind"],
                         },
-                        "mismatches": [],
-                    }
+                        mismatches=[],
+                    )
                 ],
-            },
-        }
+            ),
+        )
 
     monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
 
@@ -257,7 +285,7 @@ def test_list_turbines_command_pretty_output(monkeypatch):
     monkeypatch.setattr(
         cli,
         "get_turbine_catalog",
-        lambda: {"atlite": ["AT1"], "custom_turbines": ["CT1", "CT2"]},
+        lambda: TurbineCatalogResponse(atlite=["AT1"], custom_turbines=["CT1", "CT2"]),
     )
 
     result = runner.invoke(cli.app, ["list-turbines"])
@@ -282,7 +310,7 @@ def test_list_turbines_command_no_turbines(monkeypatch):
     monkeypatch.setattr(
         cli,
         "get_turbine_catalog",
-        lambda: {"atlite": [], "custom_turbines": []},
+        lambda: TurbineCatalogResponse(atlite=[], custom_turbines=[]),
     )
     result = runner.invoke(cli.app, ["list-turbines"])
     assert result.exit_code == 0
@@ -359,7 +387,7 @@ def test_list_turbines_default_sort_is_power_descending(monkeypatch):
     monkeypatch.setattr(
         cli,
         "get_turbine_catalog",
-        lambda: {"atlite": [], "custom_turbines": ["Low", "High"]},
+        lambda: TurbineCatalogResponse(atlite=[], custom_turbines=["Low", "High"]),
     )
 
     def fake_metrics(path):
@@ -398,25 +426,31 @@ def test_inspect_turbine_command(monkeypatch):
     monkeypatch.setattr(
         cli,
         "inspect_turbine",
-        lambda name: {
-            "status": "ok",
-            "turbine": name,
-            "metadata": {
-                "name": "DemoTurbine",
-                "provider": "custom",
-                "manufacturer": "ACME",
-                "source": "local",
-                "hub_height_m": 120.0,
-                "rated_power_mw": 5.6,
-                "definition_file": "config/wind/DemoTurbine.yaml",
-            },
-            "curve": [
-                {"speed": 0.0, "power_mw": 0.0},
-                {"speed": 10.0, "power_mw": 5.0},
-                {"speed": 25.0, "power_mw": 5.6},
-            ],
-            "curve_summary": {"point_count": 3, "speed_min": 0.0, "speed_max": 25.0},
-        },
+        lambda name: TurbineInspectResponse.model_validate(
+            {
+                "status": "ok",
+                "turbine": name,
+                "metadata": {
+                    "name": "DemoTurbine",
+                    "provider": "custom",
+                    "manufacturer": "ACME",
+                    "source": "local",
+                    "hub_height_m": 120.0,
+                    "rated_power_mw": 5.6,
+                    "definition_file": "config/wind/DemoTurbine.yaml",
+                },
+                "curve": [
+                    {"speed": 0.0, "power_mw": 0.0},
+                    {"speed": 10.0, "power_mw": 5.0},
+                    {"speed": 25.0, "power_mw": 5.6},
+                ],
+                "curve_summary": {
+                    "point_count": 3,
+                    "speed_min": 0.0,
+                    "speed_max": 25.0,
+                },
+            }
+        ),
     )
 
     result = runner.invoke(cli.app, ["inspect-turbine", "DemoTurbine"])
@@ -445,7 +479,9 @@ def test_list_solar_technologies_pretty_output(monkeypatch):
     monkeypatch.setattr(
         cli,
         "get_solar_catalog",
-        lambda: {"atlite": ["CSi"], "custom_solar_technologies": ["MyPanel"]},
+        lambda: SolarCatalogResponse(
+            atlite=["CSi"], custom_solar_technologies=["MyPanel"]
+        ),
     )
 
     result = runner.invoke(cli.app, ["list-solar-technologies"])
@@ -464,7 +500,7 @@ def test_list_solar_technologies_no_items(monkeypatch):
     monkeypatch.setattr(
         cli,
         "get_solar_catalog",
-        lambda: {"atlite": [], "custom_solar_technologies": []},
+        lambda: SolarCatalogResponse(atlite=[], custom_solar_technologies=[]),
     )
 
     result = runner.invoke(cli.app, ["list-solar-technologies"])
@@ -477,18 +513,20 @@ def test_inspect_solar_technology_command(monkeypatch):
     monkeypatch.setattr(
         cli,
         "inspect_solar_technology",
-        lambda name: {
-            "status": "ok",
-            "technology": name,
-            "metadata": {
-                "name": "MyPanel",
-                "provider": "custom",
-                "manufacturer": "ACME",
-                "source": "local",
-                "definition_file": "config/solar/MyPanel.yaml",
-            },
-            "parameters": {"A": 1.0, "B": 2.0},
-        },
+        lambda name: SolarInspectResponse.model_validate(
+            {
+                "status": "ok",
+                "technology": name,
+                "metadata": {
+                    "name": "MyPanel",
+                    "provider": "custom",
+                    "manufacturer": "ACME",
+                    "source": "local",
+                    "definition_file": "config/solar/MyPanel.yaml",
+                },
+                "parameters": {"A": 1.0, "B": 2.0},
+            }
+        ),
     )
 
     result = runner.invoke(cli.app, ["inspect-solar-technology", "MyPanel"])

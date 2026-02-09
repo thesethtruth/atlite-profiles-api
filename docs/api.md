@@ -61,7 +61,7 @@ curl -X POST http://localhost:8000/generate \\
     "latitude": 52.0,
     "longitude": 5.0,
     "output_dir": "output",
-    "cutouts": ["europe-2024-era5.nc"],
+    "cutouts": ["nl-2012-era5.nc"],
     "turbine_model": "NREL_ReferenceTurbine_2020ATB_4MW",
     "slopes": [30.0],
     "azimuths": [180.0],

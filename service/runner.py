@@ -8,6 +8,7 @@ import warnings
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import yaml
 
 from core import technology as technology_core
@@ -21,16 +22,26 @@ from core.cutout_metadata import inspect_cutout_metadata
 from core.models import (
     CutoutFetchConfig,
     CutoutFetchConfigEntry,
+    CutoutFetchResponse,
+    CutoutValidationEntry,
+    CutoutValidationReport,
+    GenerateProfilesDataResponse,
     GenerateProfilesRequest,
-    GenerateProfilesResponse,
+    GenerateProfilesStoredResponse,
+    ProfileSeriesPayload,
     SolarCatalogResponse,
+    SolarInspectResponse,
+    SolarTechnologyConfig,
     TurbineCatalogResponse,
+    TurbineInspectResponse,
+    WindTurbineConfig,
 )
-
-TurbineCatalog = dict[str, list[str]]
-TurbineInspectPayload = dict[str, object]
-SolarCatalog = dict[str, list[str]]
-SolarInspectPayload = dict[str, object]
+from core.storage import (
+    AbstractFileHandler,
+    LocalFileHandler,
+    StorageConfig,
+    store_profiles_as_csv_blobs,
+)
 
 
 def _configure_downstream_warning_filters() -> None:
@@ -67,42 +78,44 @@ def _fetch_atlite_solar_paths() -> dict[str, Path]:
     return fetch_atlite_solar_paths()
 
 
-def inspect_turbine(turbine_model: str) -> TurbineInspectPayload:
-    return technology_core.inspect_turbine(
+def inspect_turbine(turbine_model: str) -> TurbineInspectResponse:
+    payload = technology_core.inspect_turbine(
         turbine_model,
         atlite_paths_fetcher=_fetch_atlite_turbine_paths,
     )
+    return TurbineInspectResponse.model_validate(payload)
 
 
-def inspect_solar_technology(technology: str) -> SolarInspectPayload:
-    return technology_core.inspect_solar_technology(
+def inspect_solar_technology(technology: str) -> SolarInspectResponse:
+    payload = technology_core.inspect_solar_technology(
         technology,
         atlite_paths_fetcher=_fetch_atlite_solar_paths,
     )
+    return SolarInspectResponse.model_validate(payload)
 
 
-def get_turbine_catalog() -> TurbineCatalog:
+def get_turbine_catalog() -> TurbineCatalogResponse:
     return TurbineCatalogResponse(
         atlite=_fetch_atlite_turbines(),
         custom_turbines=_list_local_yaml_names("config/wind"),
-    ).model_dump()
+    )
 
 
-def get_solar_catalog() -> SolarCatalog:
+def get_solar_catalog() -> SolarCatalogResponse:
     return SolarCatalogResponse(
         atlite=_fetch_atlite_solar_technologies(),
         custom_solar_technologies=_list_local_yaml_names("config/solar"),
-    ).model_dump()
+    )
 
 
 def get_available_turbines() -> list[str]:
     catalog = get_turbine_catalog()
-    return sorted(set(catalog["atlite"] + catalog["custom_turbines"]))
+    return sorted(set(catalog.atlite + catalog.custom_turbines))
 
 
 def get_available_solar_technologies() -> list[str]:
     catalog = get_solar_catalog()
-    return sorted(set(catalog["atlite"] + catalog["custom_solar_technologies"]))
+    return sorted(set(catalog.atlite + catalog.custom_solar_technologies))
 
 
 def _apply_cdsapi_env_fallback() -> None:
@@ -277,17 +290,17 @@ def _compare_cutout_to_config(
     }
 
 
-def _empty_validation_report() -> dict[str, Any]:
-    return {
-        "enabled": True,
-        "checked": 0,
-        "matched": 0,
-        "mismatched": 0,
-        "missing": 0,
-        "remote_skipped": 0,
-        "errors": 0,
-        "entries": [],
-    }
+def _empty_validation_report() -> CutoutValidationReport:
+    return CutoutValidationReport(
+        enabled=True,
+        checked=0,
+        matched=0,
+        mismatched=0,
+        missing=0,
+        remote_skipped=0,
+        errors=0,
+        entries=[],
+    )
 
 
 def fetch_cutouts(
@@ -296,7 +309,7 @@ def fetch_cutouts(
     force_refresh: bool = False,
     name: str | None = None,
     report_validate_existing: bool = False,
-) -> dict[str, Any]:
+) -> CutoutFetchResponse:
     import atlite
 
     _apply_cdsapi_env_fallback()
@@ -325,48 +338,50 @@ def fetch_cutouts(
 
         if validation_report is not None:
             if is_remote:
-                validation_report["remote_skipped"] += 1
-                validation_report["entries"].append(
-                    {
-                        "name": entry.name,
-                        "filename": filename,
-                        "path": destination,
-                        "status": "remote_skipped",
-                        "expected": _expected_cutout_metadata(entry),
-                    }
+                validation_report.remote_skipped += 1
+                validation_report.entries.append(
+                    CutoutValidationEntry(
+                        name=entry.name,
+                        filename=filename,
+                        path=destination,
+                        status="remote_skipped",
+                        expected=_expected_cutout_metadata(entry),
+                    )
                 )
             elif exists:
                 try:
                     result = _compare_cutout_to_config(entry, local_file=local_file)
                 except Exception as exc:
-                    validation_report["errors"] += 1
-                    validation_report["entries"].append(
-                        {
-                            "name": entry.name,
-                            "filename": filename,
-                            "path": str(local_file),
-                            "status": "error",
-                            "error": str(exc),
-                            "expected": _expected_cutout_metadata(entry),
-                        }
+                    validation_report.errors += 1
+                    validation_report.entries.append(
+                        CutoutValidationEntry(
+                            name=entry.name,
+                            filename=filename,
+                            path=str(local_file),
+                            status="error",
+                            error=str(exc),
+                            expected=_expected_cutout_metadata(entry),
+                        )
                     )
                 else:
-                    validation_report["checked"] += 1
+                    validation_report.checked += 1
                     if result["status"] == "match":
-                        validation_report["matched"] += 1
+                        validation_report.matched += 1
                     else:
-                        validation_report["mismatched"] += 1
-                    validation_report["entries"].append(result)
+                        validation_report.mismatched += 1
+                    validation_report.entries.append(
+                        CutoutValidationEntry.model_validate(result)
+                    )
             else:
-                validation_report["missing"] += 1
-                validation_report["entries"].append(
-                    {
-                        "name": entry.name,
-                        "filename": filename,
-                        "path": str(local_file),
-                        "status": "missing",
-                        "expected": _expected_cutout_metadata(entry),
-                    }
+                validation_report.missing += 1
+                validation_report.entries.append(
+                    CutoutValidationEntry(
+                        name=entry.name,
+                        filename=filename,
+                        path=str(local_file),
+                        status="missing",
+                        expected=_expected_cutout_metadata(entry),
+                    )
                 )
 
         if exists and not force_refresh:
@@ -392,46 +407,54 @@ def fetch_cutouts(
         cutout.prepare(**dict(entry.prepare))
         fetched.append(str(local_file))
 
-    return {
-        "status": "ok",
-        "fetched": fetched,
-        "skipped": skipped,
-        "fetched_count": len(fetched),
-        "skipped_count": len(skipped),
-        "validation_report": validation_report,
-    }
+    return CutoutFetchResponse(
+        status="ok",
+        fetched=fetched,
+        skipped=skipped,
+        fetched_count=len(fetched),
+        skipped_count=len(skipped),
+        validation_report=validation_report,
+    )
 
 
-def run_profiles(
+def _serialize_profiles(
+    profiles: dict[str, pd.Series],
+) -> dict[str, ProfileSeriesPayload]:
+    serialized: dict[str, ProfileSeriesPayload] = {}
+    for profile_key, profile in profiles.items():
+        index_values: list[str] = []
+        for index in profile.index:
+            if hasattr(index, "isoformat"):
+                index_values.append(index.isoformat())
+            else:
+                index_values.append(str(index))
+        serialized[profile_key] = ProfileSeriesPayload(
+            index=index_values,
+            values=[float(value) for value in profile.to_list()],
+        )
+    return serialized
+
+
+def _build_generate_request(
     *,
     profile_type: str,
     latitude: float,
     longitude: float,
     base_path: Path,
-    output_dir: Path,
     cutouts: list[str],
     turbine_model: str,
     slopes: list[float],
     azimuths: list[float],
     panel_model: str,
-    turbine_config: dict[str, object] | None = None,
-    solar_technology_config: dict[str, object] | None = None,
-    visualize: bool = False,
-) -> dict:
-    from core.profile_generator import (
-        ProfileConfig,
-        ProfileGenerator,
-        SolarConfig,
-        WindConfig,
-    )
-
-    request = GenerateProfilesRequest.model_validate(
+    turbine_config: WindTurbineConfig | None = None,
+    solar_technology_config: SolarTechnologyConfig | None = None,
+) -> GenerateProfilesRequest:
+    return GenerateProfilesRequest.model_validate(
         {
             "profile_type": profile_type,
             "latitude": latitude,
             "longitude": longitude,
             "base_path": base_path,
-            "output_dir": output_dir,
             "cutouts": cutouts,
             "turbine_model": turbine_model,
             "turbine_config": turbine_config,
@@ -439,14 +462,23 @@ def run_profiles(
             "azimuths": azimuths,
             "panel_model": panel_model,
             "solar_technology_config": solar_technology_config,
-            "visualize": visualize,
         }
+    )
+
+
+def _compute_profiles(
+    request: GenerateProfilesRequest,
+) -> tuple[dict[str, pd.Series], dict[str, pd.Series]]:
+    from core.profile_generator import (
+        ProfileConfig,
+        ProfileGenerator,
+        SolarConfig,
+        WindConfig,
     )
 
     profile_config = ProfileConfig(
         location={"lat": request.latitude, "lon": request.longitude},
         base_path=request.base_path,
-        output_dir=request.output_dir,
         cutouts=[Path(cutout) for cutout in request.cutouts],
     )
     wind_config = WindConfig(
@@ -458,7 +490,6 @@ def run_profiles(
         azimuths=request.azimuths,
         panel_model=request.panel_model,
         panel_config=request.solar_technology_config,
-        output_subdir="solar_profiles",
     )
     generator = ProfileGenerator(
         profile_config=profile_config,
@@ -466,26 +497,108 @@ def run_profiles(
         solar_config=solar_config,
     )
 
-    wind_count = 0
-    solar_count = 0
+    wind_profiles: dict[str, pd.Series] = {}
+    solar_profiles: dict[str, pd.Series] = {}
 
     if request.profile_type in {"wind", "both"}:
         wind_profiles = generator.generate_wind_profiles()
-        wind_count = len(wind_profiles)
-        if request.visualize:
-            generator.visualize_wind_profiles()
 
     if request.profile_type in {"solar", "both"}:
         solar_profiles = generator.generate_solar_profiles()
-        solar_count = len(solar_profiles)
-        if request.visualize:
-            generator.visualize_solar_profiles_monthly(color_key="azimuth")
+    return wind_profiles, solar_profiles
 
-    response = GenerateProfilesResponse(
+
+def generate_profiles(
+    *,
+    profile_type: str,
+    latitude: float,
+    longitude: float,
+    base_path: Path,
+    cutouts: list[str],
+    turbine_model: str,
+    slopes: list[float],
+    azimuths: list[float],
+    panel_model: str,
+    turbine_config: WindTurbineConfig | None = None,
+    solar_technology_config: SolarTechnologyConfig | None = None,
+    include_profiles: bool = False,
+) -> GenerateProfilesDataResponse:
+    request = _build_generate_request(
+        profile_type=profile_type,
+        latitude=latitude,
+        longitude=longitude,
+        base_path=base_path,
+        cutouts=cutouts,
+        turbine_model=turbine_model,
+        slopes=slopes,
+        azimuths=azimuths,
+        panel_model=panel_model,
+        turbine_config=turbine_config,
+        solar_technology_config=solar_technology_config,
+    )
+    wind_profiles, solar_profiles = _compute_profiles(request)
+    return GenerateProfilesDataResponse(
         status="ok",
         profile_type=request.profile_type,
-        wind_profiles=wind_count,
-        solar_profiles=solar_count,
-        output_dir=str(request.output_dir),
+        wind_profiles=len(wind_profiles),
+        solar_profiles=len(solar_profiles),
+        wind_profile_data=(
+            _serialize_profiles(wind_profiles) if include_profiles else None
+        ),
+        solar_profile_data=(
+            _serialize_profiles(solar_profiles) if include_profiles else None
+        ),
     )
-    return response.model_dump()
+
+
+def generate_profiles_to_storage(
+    *,
+    profile_type: str,
+    latitude: float,
+    longitude: float,
+    base_path: Path,
+    cutouts: list[str],
+    turbine_model: str,
+    slopes: list[float],
+    azimuths: list[float],
+    panel_model: str,
+    turbine_config: WindTurbineConfig | None = None,
+    solar_technology_config: SolarTechnologyConfig | None = None,
+    storage: StorageConfig,
+    file_handler: AbstractFileHandler | None = None,
+) -> GenerateProfilesStoredResponse:
+    request = _build_generate_request(
+        profile_type=profile_type,
+        latitude=latitude,
+        longitude=longitude,
+        base_path=base_path,
+        cutouts=cutouts,
+        turbine_model=turbine_model,
+        slopes=slopes,
+        azimuths=azimuths,
+        panel_model=panel_model,
+        turbine_config=turbine_config,
+        solar_technology_config=solar_technology_config,
+    )
+    wind_profiles, solar_profiles = _compute_profiles(request)
+    active_file_handler = file_handler or LocalFileHandler(storage.output_dir)
+    stored_files = store_profiles_as_csv_blobs(
+        profiles=wind_profiles,
+        output_subdir=storage.wind_output_subdir,
+        file_handler=active_file_handler,
+    )
+    stored_files.extend(
+        store_profiles_as_csv_blobs(
+            profiles=solar_profiles,
+            output_subdir=storage.solar_output_subdir,
+            file_handler=active_file_handler,
+        )
+    )
+    return GenerateProfilesStoredResponse(
+        status="ok",
+        profile_type=request.profile_type,
+        wind_profiles=len(wind_profiles),
+        solar_profiles=len(solar_profiles),
+        output_dir=str(storage.output_dir),
+        stored_files=stored_files,
+    )

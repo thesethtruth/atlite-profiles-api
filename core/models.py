@@ -219,7 +219,6 @@ class GenerateProfilesRequest(BaseModel):
     latitude: float = Field(default=51.4713, ge=-90, le=90)
     longitude: float = Field(default=5.4186, ge=-180, le=180)
     base_path: Path = Path("data")
-    output_dir: Path = Path("output")
     cutouts: list[str] = Field(
         default_factory=lambda: ["europe-2024-era5.nc"], min_length=1
     )
@@ -229,7 +228,6 @@ class GenerateProfilesRequest(BaseModel):
     azimuths: list[float] = Field(default_factory=lambda: [180.0], min_length=1)
     panel_model: str = "CSi"
     solar_technology_config: SolarTechnologyConfig | None = None
-    visualize: bool = False
 
     @model_validator(mode="after")
     def _validate_orientation_lengths(self) -> "GenerateProfilesRequest":
@@ -238,12 +236,27 @@ class GenerateProfilesRequest(BaseModel):
         return self
 
 
-class GenerateProfilesResponse(BaseModel):
+class ProfileSeriesPayload(BaseModel):
+    index: list[str]
+    values: list[float]
+
+
+class GenerateProfilesDataResponse(BaseModel):
+    status: Literal["ok"]
+    profile_type: ProfileType
+    wind_profiles: int = Field(ge=0)
+    solar_profiles: int = Field(ge=0)
+    wind_profile_data: dict[str, ProfileSeriesPayload] | None = None
+    solar_profile_data: dict[str, ProfileSeriesPayload] | None = None
+
+
+class GenerateProfilesStoredResponse(BaseModel):
     status: Literal["ok"]
     profile_type: ProfileType
     wind_profiles: int = Field(ge=0)
     solar_profiles: int = Field(ge=0)
     output_dir: str
+    stored_files: list[str] = Field(default_factory=list)
 
 
 class CutoutFetchConfigEntry(BaseModel):
@@ -266,6 +279,37 @@ class CutoutFetchConfigEntry(BaseModel):
 
 class CutoutFetchConfig(BaseModel):
     cutouts: list[CutoutFetchConfigEntry] = Field(min_length=1)
+
+
+class CutoutValidationEntry(BaseModel):
+    name: str | None = None
+    filename: str
+    path: str
+    status: str
+    mismatches: list[str] = Field(default_factory=list)
+    expected: dict[str, Any] = Field(default_factory=dict)
+    observed: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class CutoutValidationReport(BaseModel):
+    enabled: bool = True
+    checked: int = Field(ge=0)
+    matched: int = Field(ge=0)
+    mismatched: int = Field(ge=0)
+    missing: int = Field(ge=0)
+    remote_skipped: int = Field(ge=0)
+    errors: int = Field(ge=0)
+    entries: list[CutoutValidationEntry] = Field(default_factory=list)
+
+
+class CutoutFetchResponse(BaseModel):
+    status: Literal["ok"]
+    fetched: list[str]
+    skipped: list[str]
+    fetched_count: int = Field(ge=0)
+    skipped_count: int = Field(ge=0)
+    validation_report: CutoutValidationReport | None = None
 
 
 class ListItemsResponse(BaseModel):

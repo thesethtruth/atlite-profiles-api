@@ -2,14 +2,14 @@ from pathlib import Path
 
 from fastapi import APIRouter, Body, HTTPException, Request
 
-from core.models import GenerateProfilesResponse
+from core.models import GenerateProfilesDataResponse
 from service.api.catalog import get_catalog_snapshot
 from service.api.schemas import (
     GENERATE_INLINE_EXAMPLE,
     GENERATE_RESPONSE_EXAMPLE,
     GenerateRequest,
 )
-from service.runner import run_profiles
+from service.runner import generate_profiles
 
 router = APIRouter(tags=["Generation"])
 
@@ -56,7 +56,7 @@ def _resolve_cutout_paths(*, cutouts: list[str], catalog) -> list[str]:
 
 @router.post(
     "/generate",
-    response_model=GenerateProfilesResponse,
+    response_model=GenerateProfilesDataResponse,
     responses={
         200: {
             "description": "Profiles generated successfully.",
@@ -78,7 +78,7 @@ def generate(
             }
         }
     ),
-) -> GenerateProfilesResponse:
+) -> GenerateProfilesDataResponse:
     catalog = get_catalog_snapshot(request.app)
     if catalog.available_cutouts:
         unavailable = sorted(
@@ -104,27 +104,17 @@ def generate(
         catalog=catalog,
     )
 
-    response_payload = run_profiles(
+    return generate_profiles(
         profile_type=request_payload.profile_type,
         latitude=request_payload.latitude,
         longitude=request_payload.longitude,
         base_path=Path("."),
-        output_dir=request_payload.output_dir,
         cutouts=resolved_cutouts,
         turbine_model=request_payload.turbine_model,
-        turbine_config=(
-            request_payload.turbine_config.model_dump()
-            if request_payload.turbine_config is not None
-            else None
-        ),
+        turbine_config=request_payload.turbine_config,
         slopes=request_payload.slopes,
         azimuths=request_payload.azimuths,
         panel_model=request_payload.panel_model,
-        solar_technology_config=(
-            request_payload.solar_technology_config.model_dump()
-            if request_payload.solar_technology_config is not None
-            else None
-        ),
-        visualize=request_payload.visualize,
+        solar_technology_config=request_payload.solar_technology_config,
+        include_profiles=True,
     )
-    return GenerateProfilesResponse.model_validate(response_payload)

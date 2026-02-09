@@ -48,3 +48,13 @@ If formatting/linting tools are introduced later, add them to `pyproject.toml` a
 - Keep `README.md` concise (quick start + pointers). Put detailed behavior, options, and examples in `/docs` and link from README.
 - When behavior, commands, or interfaces change: update `/docs` first, then update README only if navigation/quick-start pointers changed.
 - Do not open PRs or make commits from the agent workflow, make changes directly in this repository working tree only.
+
+## Engineering Reflection & Guardrails
+- Pass typed data models (Pydantic/dataclasses) through the codebase. Avoid passing raw `dict` payloads between layers.
+- Do not use plain `dict` payloads in application flow, including boundaries. Parse incoming payloads directly into typed models, and serialize outgoing payloads from typed models only.
+- Enforce separation of concerns:
+  - Core generation computes profiles only.
+  - Storage concerns are explicit and isolated (separate storage config and storage handler APIs).
+  - API handlers should not silently perform local file persistence unless that storage behavior is explicitly part of the API contract.
+- Push back on illogical feature designs early. Example: an API that writes files locally but never exposes or returns those artifacts is a design smell and should be challenged.
+- Prefer explicit, separate entrypoints for distinct responsibilities (for example compute-only vs compute-and-persist) instead of mode flags that blur behavior.

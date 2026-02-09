@@ -23,7 +23,6 @@ def solar_technology_inspect(technology: str, request: Request) -> SolarInspectR
         )
 
     try:
-        payload = inspect_solar_technology(technology)
-        return SolarInspectResponse.model_validate(payload)
+        return inspect_solar_technology(technology)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

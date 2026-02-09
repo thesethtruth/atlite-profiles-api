@@ -5,6 +5,7 @@ from core.models import (
     CutoutDefinition,
     CutoutInspectResponse,
     CutoutPrepareConfig,
+    GenerateProfilesDataResponse,
 )
 from service import api
 from service.api.catalog import CatalogSnapshot, apply_catalog_snapshot
@@ -140,23 +141,23 @@ def test_generate_endpoint(monkeypatch):
         ),
     )
 
-    def fake_run_profiles(**kwargs):
+    def fake_generate_profiles(**kwargs):
         captured.update(kwargs)
-        return {
-            "status": "ok",
-            "profile_type": "both",
-            "wind_profiles": 1,
-            "solar_profiles": 1,
-            "output_dir": "output",
-        }
+        return GenerateProfilesDataResponse(
+            status="ok",
+            profile_type="both",
+            wind_profiles=1,
+            solar_profiles=1,
+            wind_profile_data={"w": {"index": [], "values": []}},
+            solar_profile_data={"s": {"index": [], "values": []}},
+        )
 
-    monkeypatch.setattr(generate_router, "run_profiles", fake_run_profiles)
+    monkeypatch.setattr(generate_router, "generate_profiles", fake_generate_profiles)
 
     payload = {
         "profile_type": "both",
         "latitude": 52.0,
         "longitude": 5.0,
-        "output_dir": "output",
         "cutouts": ["europe-2024-era5.nc"],
         "turbine_model": "ModelA",
         "turbine_config": {
@@ -185,16 +186,16 @@ def test_generate_endpoint(monkeypatch):
             "k_6": 0.000005,
             "inverter_efficiency": 0.9,
         },
-        "visualize": False,
     }
     response = client.post("/generate", json=payload)
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert captured["cutouts"] == ["/data/europe-2024-era5.nc"]
-    assert captured["turbine_config"]["name"] == "API_Custom"
-    assert captured["solar_technology_config"]["name"] == "API_Solar"
-    assert captured["solar_technology_config"]["model"] == "huld"
+    assert captured["include_profiles"] is True
+    assert captured["turbine_config"].name == "API_Custom"
+    assert captured["solar_technology_config"].name == "API_Solar"
+    assert captured["solar_technology_config"].model == "huld"
 
 
 def test_generate_endpoint_unknown_cutout_rejected(monkeypatch):
@@ -211,13 +212,11 @@ def test_generate_endpoint_unknown_cutout_rejected(monkeypatch):
         "profile_type": "both",
         "latitude": 52.0,
         "longitude": 5.0,
-        "output_dir": "output",
         "cutouts": ["unknown.nc"],
         "turbine_model": "ModelA",
         "slopes": [30.0],
         "azimuths": [180.0],
         "panel_model": "CSi",
-        "visualize": False,
     }
     response = client.post("/generate", json=payload)
 
@@ -253,13 +252,11 @@ def test_generate_endpoint_out_of_bounds_rejected(monkeypatch):
         "profile_type": "both",
         "latitude": 10.0,
         "longitude": 10.0,
-        "output_dir": "output",
         "cutouts": ["known.nc"],
         "turbine_model": "ModelA",
         "slopes": [30.0],
         "azimuths": [180.0],
         "panel_model": "CSi",
-        "visualize": False,
     }
     response = client.post("/generate", json=payload)
 
@@ -380,7 +377,6 @@ def test_generate_endpoint_invalid_turbine_config():
         "profile_type": "wind",
         "latitude": 52.0,
         "longitude": 5.0,
-        "output_dir": "output",
         "cutouts": ["europe-2024-era5.nc"],
         "turbine_model": "ModelA",
         "turbine_config": {
@@ -392,7 +388,6 @@ def test_generate_endpoint_invalid_turbine_config():
         "slopes": [30.0],
         "azimuths": [180.0],
         "panel_model": "CSi",
-        "visualize": False,
     }
 
     response = client.post("/generate", json=payload)
@@ -449,13 +444,11 @@ def test_generate_endpoint_rejects_base_path_field():
         "latitude": 52.0,
         "longitude": 5.0,
         "base_path": "/data",
-        "output_dir": "output",
         "cutouts": ["europe-2024-era5.nc"],
         "turbine_model": "ModelA",
         "slopes": [30.0],
         "azimuths": [180.0],
         "panel_model": "CSi",
-        "visualize": False,
     }
 
     response = client.post("/generate", json=payload)

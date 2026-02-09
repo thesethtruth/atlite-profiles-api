@@ -15,6 +15,8 @@ from core.catalog import (
     fetch_atlite_solar_paths,
     fetch_atlite_turbine_paths,
 )
+from core.models import SolarTechnologyConfig, WindTurbineConfig
+from core.storage import StorageConfig
 from core.technology import (
     to_float as _to_float,
 )
@@ -24,11 +26,11 @@ from core.technology import (
 from service.logging_utils import configure_logging
 from service.runner import (
     fetch_cutouts,
+    generate_profiles_to_storage,
     get_solar_catalog,
     get_turbine_catalog,
     inspect_solar_technology,
     inspect_turbine,
-    run_profiles,
 )
 
 configure_logging()
@@ -417,30 +419,43 @@ def generate(
             help="Path to a custom solar technology config YAML file.",
         ),
     ] = None,
-    visualize: Annotated[bool, typer.Option(help="Display plots.")] = False,
 ) -> None:
-    turbine_config: dict[str, object] | None = None
+    turbine_config: WindTurbineConfig | None = None
     if turbine_config_file is not None:
-        turbine_config = _load_yaml_mapping(
+        turbine_config_payload = _load_yaml_mapping(
             turbine_config_file,
             param_hint="turbine-config-file",
             label="Turbine config",
         )
+        try:
+            turbine_config = WindTurbineConfig.model_validate(turbine_config_payload)
+        except Exception as exc:
+            raise typer.BadParameter(
+                f"Invalid turbine config: {exc}", param_hint="turbine-config-file"
+            ) from exc
 
-    solar_technology_config: dict[str, object] | None = None
+    solar_technology_config: SolarTechnologyConfig | None = None
     if solar_technology_config_file is not None:
-        solar_technology_config = _load_yaml_mapping(
+        solar_payload = _load_yaml_mapping(
             solar_technology_config_file,
             param_hint="solar-technology-config-file",
             label="Solar technology config",
         )
+        try:
+            solar_technology_config = SolarTechnologyConfig.model_validate(
+                solar_payload
+            )
+        except Exception as exc:
+            raise typer.BadParameter(
+                f"Invalid solar technology config: {exc}",
+                param_hint="solar-technology-config-file",
+            ) from exc
 
-    result = run_profiles(
+    result = generate_profiles_to_storage(
         profile_type=profile_type,
         latitude=latitude,
         longitude=longitude,
         base_path=base_path,
-        output_dir=output_dir,
         cutouts=cutout,
         turbine_model=turbine_model,
         turbine_config=turbine_config,
@@ -448,13 +463,13 @@ def generate(
         azimuths=azimuth,
         panel_model=panel_model,
         solar_technology_config=solar_technology_config,
-        visualize=visualize,
+        storage=StorageConfig(output_dir=output_dir),
     )
     typer.echo(
         "Done: "
-        f"wind={result['wind_profiles']}, "
-        f"solar={result['solar_profiles']}, "
-        f"output={result['output_dir']}"
+        f"wind={result.wind_profiles}, "
+        f"solar={result.solar_profiles}, "
+        f"output={result.output_dir}"
     )
 
 
@@ -466,8 +481,8 @@ def list_turbines(
     ] = SortBy.power,
 ) -> None:
     catalog = get_turbine_catalog()
-    atlite_turbines = catalog["atlite"]
-    custom_turbines = catalog["custom_turbines"]
+    atlite_turbines = catalog.atlite
+    custom_turbines = catalog.custom_turbines
 
     if len(atlite_turbines) + len(custom_turbines) == 0:
         console.print("[yellow]No turbines found.[/yellow]")
@@ -525,8 +540,8 @@ def list_turbines(
 @app.command("list-solar-technologies")
 def list_solar_technologies() -> None:
     catalog = get_solar_catalog()
-    atlite_technologies = catalog["atlite"]
-    custom_technologies = catalog["custom_solar_technologies"]
+    atlite_technologies = catalog.atlite
+    custom_technologies = catalog.custom_solar_technologies
 
     if len(atlite_technologies) + len(custom_technologies) == 0:
         console.print("[yellow]No solar technologies found.[/yellow]")
@@ -567,7 +582,7 @@ def inspect_turbine_command(
     ],
 ) -> None:
     try:
-        payload = inspect_turbine(turbine_model)
+        payload = inspect_turbine(turbine_model).model_dump()
     except ValueError as exc:
         raise typer.BadParameter(str(exc), param_hint="turbine-model")
 
@@ -602,7 +617,7 @@ def inspect_solar_technology_command(
     ],
 ) -> None:
     try:
-        payload = inspect_solar_technology(technology)
+        payload = inspect_solar_technology(technology).model_dump()
     except ValueError as exc:
         raise typer.BadParameter(str(exc), param_hint="technology")
 
@@ -693,22 +708,22 @@ def fetch_cutouts_command(
 
     typer.echo(
         "Done: "
-        f"fetched={result['fetched_count']}, "
-        f"skipped={result['skipped_count']}, "
+        f"fetched={result.fetched_count}, "
+        f"skipped={result.skipped_count}, "
         f"config={resolved_config}"
     )
-    validation_report = result.get("validation_report")
-    if isinstance(validation_report, dict):
+    validation_report = result.validation_report
+    if validation_report is not None:
         typer.echo(
             "Validation report: "
-            f"checked={validation_report['checked']}, "
-            f"matched={validation_report['matched']}, "
-            f"mismatched={validation_report['mismatched']}, "
-            f"missing={validation_report['missing']}, "
-            f"remote_skipped={validation_report['remote_skipped']}, "
-            f"errors={validation_report['errors']}"
+            f"checked={validation_report.checked}, "
+            f"matched={validation_report.matched}, "
+            f"mismatched={validation_report.mismatched}, "
+            f"missing={validation_report.missing}, "
+            f"remote_skipped={validation_report.remote_skipped}, "
+            f"errors={validation_report.errors}"
         )
-        _render_validation_report_details(validation_report)
+        _render_validation_report_details(validation_report.model_dump())
 
 
 if __name__ == "__main__":

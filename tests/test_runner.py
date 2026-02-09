@@ -2,18 +2,29 @@ import sys
 import types
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 import service.runner as runner_module
+from core.models import (
+    GenerateProfilesDataResponse,
+    GenerateProfilesStoredResponse,
+    SolarCatalogResponse,
+    SolarTechnologyConfig,
+    TurbineCatalogResponse,
+    WindTurbineConfig,
+)
+from core.storage import StorageConfig
 from service.runner import (
     fetch_cutouts,
+    generate_profiles,
+    generate_profiles_to_storage,
     get_available_solar_technologies,
     get_available_turbines,
     get_solar_catalog,
     get_turbine_catalog,
     inspect_solar_technology,
     inspect_turbine,
-    run_profiles,
 )
 
 
@@ -51,7 +62,7 @@ class DummySolarConfig:
         self.kwargs = kwargs
 
 
-def test_run_profiles_counts(monkeypatch):
+def test_generate_profiles_counts(monkeypatch):
     fake_profile_module = types.SimpleNamespace(
         ProfileConfig=DummyProfileConfig,
         WindConfig=DummyWindConfig,
@@ -60,27 +71,26 @@ def test_run_profiles_counts(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
 
-    result = run_profiles(
+    result = generate_profiles(
         profile_type="both",
         latitude=52.0,
         longitude=5.0,
         base_path=Path("/tmp"),
-        output_dir=Path("out"),
         cutouts=["europe-2024-era5.nc"],
         turbine_model="ModelA",
         slopes=[30.0, 15.0],
         azimuths=[180.0, 90.0],
         panel_model="CSi",
-        visualize=False,
     )
 
-    assert result["status"] == "ok"
-    assert result["wind_profiles"] == 1
-    assert result["solar_profiles"] == 2
-    assert result["output_dir"] == "out"
+    assert result.status == "ok"
+    assert result.wind_profiles == 1
+    assert result.solar_profiles == 2
+    assert result.wind_profile_data is None
+    assert result.solar_profile_data is None
 
 
-def test_run_profiles_accepts_turbine_config(monkeypatch):
+def test_generate_profiles_accepts_turbine_config(monkeypatch):
     captured: dict[str, object] = {}
 
     class CaptureWindConfig:
@@ -95,31 +105,29 @@ def test_run_profiles_accepts_turbine_config(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
 
-    run_profiles(
+    generate_profiles(
         profile_type="wind",
         latitude=52.0,
         longitude=5.0,
         base_path=Path("/tmp"),
-        output_dir=Path("out"),
         cutouts=["europe-2024-era5.nc"],
         turbine_model="ignored-when-config-present",
-        turbine_config={
-            "name": "API_Custom",
-            "hub_height_m": 120,
-            "wind_speeds": [0, 10, 20],
-            "power_curve_mw": [0, 2, 4],
-        },
+        turbine_config=WindTurbineConfig(
+            name="API_Custom",
+            hub_height_m=120,
+            wind_speeds=[0, 10, 20],
+            power_curve_mw=[0, 2, 4],
+        ),
         slopes=[30.0],
         azimuths=[180.0],
         panel_model="CSi",
-        visualize=False,
     )
 
     assert captured["turbine_model"] == "ignored-when-config-present"
     assert captured["turbine_config"].name == "API_Custom"
 
 
-def test_run_profiles_accepts_solar_technology_config(monkeypatch):
+def test_generate_profiles_accepts_solar_technology_config(monkeypatch):
     captured: dict[str, object] = {}
 
     class CaptureSolarConfig:
@@ -134,35 +142,33 @@ def test_run_profiles_accepts_solar_technology_config(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
 
-    run_profiles(
+    generate_profiles(
         profile_type="solar",
         latitude=52.0,
         longitude=5.0,
         base_path=Path("/tmp"),
-        output_dir=Path("out"),
         cutouts=["europe-2024-era5.nc"],
         turbine_model="ModelA",
         slopes=[30.0],
         azimuths=[180.0],
         panel_model="ignored-when-config-present",
-        solar_technology_config={
-            "model": "huld",
-            "name": "API_Solar",
-            "efficiency": 0.1,
-            "c_temp_amb": 1.0,
-            "c_temp_irrad": 0.035,
-            "r_tamb": 293.0,
-            "r_tmod": 298.0,
-            "r_irradiance": 1000.0,
-            "k_1": -0.017162,
-            "k_2": -0.040289,
-            "k_3": -0.004681,
-            "k_4": 0.000148,
-            "k_5": 0.000169,
-            "k_6": 0.000005,
-            "inverter_efficiency": 0.9,
-        },
-        visualize=False,
+        solar_technology_config=SolarTechnologyConfig(
+            model="huld",
+            name="API_Solar",
+            efficiency=0.1,
+            c_temp_amb=1.0,
+            c_temp_irrad=0.035,
+            r_tamb=293.0,
+            r_tmod=298.0,
+            r_irradiance=1000.0,
+            k_1=-0.017162,
+            k_2=-0.040289,
+            k_3=-0.004681,
+            k_4=0.000148,
+            k_5=0.000169,
+            k_6=0.000005,
+            inverter_efficiency=0.9,
+        ),
     )
 
     assert captured["panel_model"] == "ignored-when-config-present"
@@ -205,7 +211,8 @@ def test_get_turbine_catalog_live_fetch_with_local_custom(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
 
     catalog = get_turbine_catalog()
-    assert catalog == {"atlite": ["A", "B"], "custom_turbines": ["Z"]}
+    assert catalog.atlite == ["A", "B"]
+    assert catalog.custom_turbines == ["Z"]
 
 
 def test_get_solar_catalog_live_fetch_with_local_custom(tmp_path, monkeypatch):
@@ -221,10 +228,8 @@ def test_get_solar_catalog_live_fetch_with_local_custom(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     catalog = get_solar_catalog()
-    assert catalog == {
-        "atlite": ["CSi", "CdTe"],
-        "custom_solar_technologies": ["MyPanel"],
-    }
+    assert catalog.atlite == ["CSi", "CdTe"]
+    assert catalog.custom_solar_technologies == ["MyPanel"]
 
 
 def test_get_turbine_catalog_handles_missing_custom_dir(monkeypatch, tmp_path):
@@ -235,17 +240,18 @@ def test_get_turbine_catalog_handles_missing_custom_dir(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 
     catalog = get_turbine_catalog()
-    assert catalog == {"atlite": ["A"], "custom_turbines": []}
+    assert catalog.atlite == ["A"]
+    assert catalog.custom_turbines == []
 
 
 def test_get_available_solar_technologies_deduplicates(monkeypatch):
     monkeypatch.setattr(
         runner_module,
         "get_solar_catalog",
-        lambda: {
-            "atlite": ["CSi", "CdTe"],
-            "custom_solar_technologies": ["CdTe", "MyPanel"],
-        },
+        lambda: SolarCatalogResponse(
+            atlite=["CSi", "CdTe"],
+            custom_solar_technologies=["CdTe", "MyPanel"],
+        ),
     )
 
     assert get_available_solar_technologies() == ["CSi", "CdTe", "MyPanel"]
@@ -255,10 +261,113 @@ def test_get_available_turbines_deduplicates(monkeypatch):
     monkeypatch.setattr(
         runner_module,
         "get_turbine_catalog",
-        lambda: {"atlite": ["A", "B"], "custom_turbines": ["B", "Z"]},
+        lambda: TurbineCatalogResponse(atlite=["A", "B"], custom_turbines=["B", "Z"]),
     )
 
     assert get_available_turbines() == ["A", "B", "Z"]
+
+
+def test_generate_profiles_to_storage_persists_with_local_file_handler(
+    monkeypatch, tmp_path
+):
+    index = pd.date_range("2024-01-01", periods=2, freq="h")
+
+    class SeriesGenerator:
+        def __init__(self, profile_config, wind_config, solar_config):
+            self.profile_config = profile_config
+            self.wind_config = wind_config
+            self.solar_config = solar_config
+
+        def generate_wind_profiles(self):
+            return {"2024_model": pd.Series([0.1, 0.2], index=index)}
+
+        def generate_solar_profiles(self):
+            return {}
+
+        def visualize_wind_profiles(self):
+            return None
+
+        def visualize_solar_profiles_monthly(self, color_key="azimuth"):
+            return None
+
+    fake_profile_module = types.SimpleNamespace(
+        ProfileConfig=DummyProfileConfig,
+        WindConfig=DummyWindConfig,
+        SolarConfig=DummySolarConfig,
+        ProfileGenerator=SeriesGenerator,
+    )
+    monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
+
+    result = generate_profiles_to_storage(
+        profile_type="wind",
+        latitude=52.0,
+        longitude=5.0,
+        base_path=Path("/tmp"),
+        storage=StorageConfig(output_dir=tmp_path / "out"),
+        cutouts=["europe-2024-era5.nc"],
+        turbine_model="ModelA",
+        slopes=[30.0],
+        azimuths=[180.0],
+        panel_model="CSi",
+    )
+
+    assert isinstance(result, GenerateProfilesStoredResponse)
+    assert result.status == "ok"
+    assert result.output_dir == str(tmp_path / "out")
+    assert len(result.stored_files) == 1
+    assert Path(result.stored_files[0]).exists()
+
+
+def test_generate_profiles_include_profiles_serializes_series(monkeypatch):
+    index = pd.date_range("2024-01-01", periods=2, freq="h")
+
+    class SeriesGenerator:
+        def __init__(self, profile_config, wind_config, solar_config):
+            self.profile_config = profile_config
+            self.wind_config = wind_config
+            self.solar_config = solar_config
+
+        def generate_wind_profiles(self):
+            return {"2024_model": pd.Series([0.1, 0.2], index=index)}
+
+        def generate_solar_profiles(self):
+            return {"2024_slope30_azimuth180": pd.Series([0.3, 0.4], index=index)}
+
+        def visualize_wind_profiles(self):
+            return None
+
+        def visualize_solar_profiles_monthly(self, color_key="azimuth"):
+            return None
+
+    fake_profile_module = types.SimpleNamespace(
+        ProfileConfig=DummyProfileConfig,
+        WindConfig=DummyWindConfig,
+        SolarConfig=DummySolarConfig,
+        ProfileGenerator=SeriesGenerator,
+    )
+    monkeypatch.setitem(sys.modules, "core.profile_generator", fake_profile_module)
+
+    result = generate_profiles(
+        profile_type="both",
+        latitude=52.0,
+        longitude=5.0,
+        base_path=Path("/tmp"),
+        cutouts=["europe-2024-era5.nc"],
+        turbine_model="ModelA",
+        slopes=[30.0],
+        azimuths=[180.0],
+        panel_model="CSi",
+        include_profiles=True,
+    )
+
+    assert isinstance(result, GenerateProfilesDataResponse)
+    assert result.wind_profile_data is not None
+    assert result.solar_profile_data is not None
+    assert result.wind_profile_data["2024_model"].values == [0.1, 0.2]
+    assert result.solar_profile_data["2024_slope30_azimuth180"].values == [
+        0.3,
+        0.4,
+    ]
 
 
 def test_fetch_cutouts_prepares_local_file(tmp_path, monkeypatch):
@@ -297,8 +406,8 @@ def test_fetch_cutouts_prepares_local_file(tmp_path, monkeypatch):
 
     result = fetch_cutouts(config_file=config_file, force_refresh=False)
 
-    assert result["fetched_count"] == 1
-    assert result["skipped_count"] == 0
+    assert result.fetched_count == 1
+    assert result.skipped_count == 0
     assert (tmp_path / "data/local.nc").exists()
     assert calls[0]["kwargs"]["module"] == "era5"
     assert isinstance(calls[0]["kwargs"]["x"], slice)
@@ -355,7 +464,7 @@ def test_fetch_cutouts_filters_by_name(tmp_path, monkeypatch):
 
     result = fetch_cutouts(config_file=config_file, force_refresh=False, name="second")
 
-    assert result["fetched_count"] == 1
+    assert result.fetched_count == 1
     assert prepared_paths == ["data/second.nc"]
 
 
@@ -407,19 +516,20 @@ def test_fetch_cutouts_validation_report_for_existing_local_file(tmp_path, monke
         report_validate_existing=True,
     )
 
-    report = result["validation_report"]
-    assert report["checked"] == 1
-    assert report["matched"] == 1
-    assert report["mismatched"] == 0
-    assert report["missing"] == 0
-    assert report["entries"][0]["expected"] == {
+    report = result.validation_report
+    assert report is not None
+    assert report.checked == 1
+    assert report.matched == 1
+    assert report.mismatched == 0
+    assert report.missing == 0
+    assert report.entries[0].expected == {
         "module": "era5",
         "x": [1.0, 2.0],
         "y": [3.0, 4.0],
         "time": "2024",
         "features": ["wind"],
     }
-    assert report["entries"][0]["observed"] == {
+    assert report.entries[0].observed == {
         "module": "era5",
         "x": [1.0, 2.0],
         "y": [3.0, 4.0],
@@ -467,10 +577,10 @@ def test_fetch_cutouts_skips_existing_unless_force_refresh(tmp_path, monkeypatch
     skipped = fetch_cutouts(config_file=config_file, force_refresh=False)
     refreshed = fetch_cutouts(config_file=config_file, force_refresh=True)
 
-    assert skipped["fetched_count"] == 0
-    assert skipped["skipped_count"] == 1
-    assert refreshed["fetched_count"] == 1
-    assert refreshed["skipped_count"] == 0
+    assert skipped.fetched_count == 0
+    assert skipped.skipped_count == 1
+    assert refreshed.fetched_count == 1
+    assert refreshed.skipped_count == 0
     assert call_count["count"] == 1
     assert existing_file.read_text(encoding="utf-8") == "new"
 
@@ -518,8 +628,8 @@ def test_fetch_cutouts_remote_target_uses_scp(tmp_path, monkeypatch):
 
     result = fetch_cutouts(config_file=config_file, force_refresh=False)
 
-    assert result["fetched_count"] == 1
-    assert result["skipped_count"] == 0
+    assert result.fetched_count == 1
+    assert result.skipped_count == 0
     assert any(cmd[0] == "scp" for cmd in commands)
 
 
@@ -543,13 +653,13 @@ def test_inspect_turbine_custom_yaml(tmp_path, monkeypatch):
 
     result = inspect_turbine("Demo")
 
-    assert result["status"] == "ok"
-    assert result["metadata"]["provider"] == "custom"
-    assert result["metadata"]["definition_file"] == "config/wind/Demo.yaml"
-    assert result["metadata"]["rated_power_mw"] == pytest.approx(5.6)
-    assert result["curve"][1] == {"speed": 10.0, "power_mw": 3.2}
-    assert result["curve_summary"]["point_count"] == 3
-    assert result["curve_summary"]["speed_max"] == 20.0
+    assert result.status == "ok"
+    assert result.metadata.provider == "custom"
+    assert result.metadata.definition_file == "config/wind/Demo.yaml"
+    assert result.metadata.rated_power_mw == pytest.approx(5.6)
+    assert result.curve[1].model_dump() == {"speed": 10.0, "power_mw": 3.2}
+    assert result.curve_summary.point_count == 3
+    assert result.curve_summary.speed_max == 20.0
 
 
 def test_inspect_turbine_uses_atlite_when_not_custom(tmp_path, monkeypatch):
@@ -567,14 +677,11 @@ def test_inspect_turbine_uses_atlite_when_not_custom(tmp_path, monkeypatch):
 
     result = inspect_turbine("ATLiteDemo")
 
-    assert result["metadata"]["provider"] == "atlite"
-    assert result["metadata"]["name"] == "ATLiteDemo"
-    assert (
-        result["metadata"]["definition_file"]
-        == "atlite/resources/windturbine/ATLiteDemo"
-    )
-    assert result["metadata"]["hub_height_m"] == 90.0
-    assert result["curve_summary"]["point_count"] == 3
+    assert result.metadata.provider == "atlite"
+    assert result.metadata.name == "ATLiteDemo"
+    assert result.metadata.definition_file == "atlite/resources/windturbine/ATLiteDemo"
+    assert result.metadata.hub_height_m == 90.0
+    assert result.curve_summary.point_count == 3
 
 
 def test_inspect_turbine_infers_power_unit_once_for_full_curve(tmp_path, monkeypatch):
@@ -590,8 +697,8 @@ def test_inspect_turbine_infers_power_unit_once_for_full_curve(tmp_path, monkeyp
     result = inspect_turbine("MixedUnits")
 
     # Inferred as kW for the full payload, so all POW values are scaled consistently.
-    assert result["curve"][1] == {"speed": 10.0, "power_mw": 0.05}
-    assert result["metadata"]["rated_power_mw"] == pytest.approx(5.6)
+    assert result.curve[1].model_dump() == {"speed": 10.0, "power_mw": 0.05}
+    assert result.metadata.rated_power_mw == pytest.approx(5.6)
 
 
 def test_inspect_solar_technology_custom_yaml(tmp_path, monkeypatch):
@@ -624,11 +731,11 @@ def test_inspect_solar_technology_custom_yaml(tmp_path, monkeypatch):
 
     result = inspect_solar_technology("DemoPanel")
 
-    assert result["status"] == "ok"
-    assert result["metadata"]["provider"] == "custom"
-    assert result["metadata"]["definition_file"] == "config/solar/DemoPanel.yaml"
-    assert result["parameters"]["model"] == "huld"
-    assert result["parameters"]["efficiency"] == 0.1
+    assert result.status == "ok"
+    assert result.metadata.provider == "custom"
+    assert result.metadata.definition_file == "config/solar/DemoPanel.yaml"
+    assert result.parameters["model"] == "huld"
+    assert result.parameters["efficiency"] == 0.1
 
 
 def test_inspect_turbine_not_found(monkeypatch, tmp_path):

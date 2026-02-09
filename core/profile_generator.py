@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 class ProfileConfig(BaseModel):
     """Base configuration for profile generation."""
 
-    output_dir: Path
     base_path: Path
     cutouts: List[Path] = Field(
         default_factory=lambda: [
@@ -196,12 +195,6 @@ class ProfileGenerator:
         self.wind_config = wind_config or WindConfig()
         self.solar_config = solar_config or SolarConfig()
 
-        # Create output directories if they don't exist
-        self.wind_output_dir = self.config.output_dir / self.wind_config.output_subdir
-        self.solar_output_dir = self.config.output_dir / self.solar_config.output_subdir
-        self.wind_output_dir.mkdir(parents=True, exist_ok=True)
-        self.solar_output_dir.mkdir(parents=True, exist_ok=True)
-
         # Store generated profiles
         self.wind_profiles = {}
         self.solar_profiles = {}
@@ -215,46 +208,24 @@ class ProfileGenerator:
             cutout_year = cutout.name.split("-")[1]
 
             profile_key = f"{cutout_year}_{self.wind_config.turbine_name()}"
-            filename = f"{profile_key}.csv"
-            filepath = self.wind_output_dir / filename
+            logger.info(
+                "Generating wind profile for %s using %s",
+                cutout_year,
+                self.wind_config.turbine_name(),
+            )
 
-            # Check if file already exists
-            if filepath.exists():
-                logger.info(
-                    "Wind profile for %s already exists at %s, loading existing file",
-                    cutout_year,
-                    filepath,
-                )
-                wind_profile = pd.read_csv(
-                    filepath, index_col=0, parse_dates=True
-                ).squeeze()
-                profiles[profile_key] = wind_profile
-                logger.info(
-                    "Wind full load hours for %s: %s", cutout_year, wind_profile.sum()
-                )
-            else:
-                logger.info(
-                    "Generating wind profile for %s using %s",
-                    cutout_year,
-                    self.wind_config.turbine_name(),
-                )
+            wind_profile = get_wind_profile(
+                self.config.location["lat"],
+                self.config.location["lon"],
+                cutout_path=cutout_path,
+                turbine=self.wind_config.atlite_turbine(),
+            )
 
-                wind_profile = get_wind_profile(
-                    self.config.location["lat"],
-                    self.config.location["lon"],
-                    cutout_path=cutout_path,
-                    turbine=self.wind_config.atlite_turbine(),
-                )
+            profiles[profile_key] = wind_profile
 
-                profiles[profile_key] = wind_profile
-
-                logger.info(
-                    "Wind full load hours for %s: %s", cutout_year, wind_profile.sum()
-                )
-
-                # Save profile to file
-                wind_profile.to_csv(filepath)
-                logger.info("Saved wind profile to %s", filepath)
+            logger.info(
+                "Wind full load hours for %s: %s", cutout_year, wind_profile.sum()
+            )
 
         self.wind_profiles = profiles
         return profiles
@@ -271,60 +242,31 @@ class ProfileGenerator:
                 self.solar_config.slopes, self.solar_config.azimuths
             ):
                 profile_key = f"{cutout_year}_slope{slope}_azimuth{azimuth}"
-                filename = f"{profile_key}.csv"
-                filepath = self.solar_output_dir / filename
+                logger.info(
+                    "Generating solar profile for %s with slope=%s, azimuth=%s",
+                    cutout_year,
+                    slope,
+                    azimuth,
+                )
 
-                # Check if file already exists
-                if filepath.exists():
-                    logger.info(
-                        "Solar profile for %s with slope=%s, azimuth=%s "
-                        "already exists at %s, loading existing file",
-                        cutout_year,
-                        slope,
-                        azimuth,
-                        filepath,
-                    )
-                    solar_profile = pd.read_csv(
-                        filepath, index_col=0, parse_dates=True
-                    ).squeeze()
-                    profiles[profile_key] = solar_profile
-                    logger.info(
-                        "Solar full load hours for %s slope=%s azimuth=%s: %s",
-                        cutout_year,
-                        slope,
-                        azimuth,
-                        solar_profile.sum(),
-                    )
-                else:
-                    logger.info(
-                        "Generating solar profile for %s with slope=%s, azimuth=%s",
-                        cutout_year,
-                        slope,
-                        azimuth,
-                    )
+                solar_profile = get_solar_profile(
+                    self.config.location["lat"],
+                    self.config.location["lon"],
+                    slope=slope,
+                    azimuth=azimuth,
+                    cutout_path=cutout_path,
+                    panel_model=self.solar_config.atlite_panel(),
+                )
 
-                    solar_profile = get_solar_profile(
-                        self.config.location["lat"],
-                        self.config.location["lon"],
-                        slope=slope,
-                        azimuth=azimuth,
-                        cutout_path=cutout_path,
-                        panel_model=self.solar_config.atlite_panel(),
-                    )
+                profiles[profile_key] = solar_profile
 
-                    profiles[profile_key] = solar_profile
-
-                    logger.info(
-                        "Solar full load hours for %s slope=%s azimuth=%s: %s",
-                        cutout_year,
-                        slope,
-                        azimuth,
-                        solar_profile.sum(),
-                    )
-
-                    # Save profile to file
-                    solar_profile.to_csv(filepath)
-                    logger.info("Saved solar profile to %s", filepath)
+                logger.info(
+                    "Solar full load hours for %s slope=%s azimuth=%s: %s",
+                    cutout_year,
+                    slope,
+                    azimuth,
+                    solar_profile.sum(),
+                )
 
         self.solar_profiles = profiles
         return profiles
@@ -352,14 +294,8 @@ class ProfileGenerator:
     ):
         """Visualize solar profiles by month."""
         if not self.solar_profiles:
-            # Try to load profiles from files
-            self._load_solar_profiles_from_files()
-
-            if not self.solar_profiles:
-                logger.warning(
-                    "No solar profiles to visualize. Generate profiles first."
-                )
-                return
+            logger.warning("No solar profiles to visualize. Generate profiles first.")
+            return
 
         # Create a DataFrame for monthly aggregation
         df_total = pd.DataFrame()
@@ -401,21 +337,6 @@ class ProfileGenerator:
 
         return fig
 
-    def _load_solar_profiles_from_files(self):
-        """Load solar profiles from files."""
-        profiles = {}
-
-        if not self.solar_output_dir.exists():
-            return profiles
-
-        for file in self.solar_output_dir.glob("*.csv"):
-            profile_key = file.stem
-            profile = pd.read_csv(file, index_col=0, parse_dates=True)
-            profiles[profile_key] = profile
-
-        self.solar_profiles = profiles
-        return profiles
-
     @staticmethod
     def calculate_rotor_power_density(diameter: float, power: float) -> float:
         """
@@ -448,7 +369,6 @@ if __name__ == "__main__":
     latitude = 51.4713
     longitude = 5.4186
     visualize_results = True
-    output_dir = "eindhoven_energy_hubs"
 
     # Wind-specific configuration
     turbine_model = "NREL_ReferenceTurbine_2020ATB_4MW"
@@ -469,7 +389,6 @@ if __name__ == "__main__":
         profile_config = ProfileConfig(
             location={"lat": latitude, "lon": longitude},
             base_path=Path("data"),
-            output_dir=Path(output_dir),
             cutouts=[
                 Path("europe-1987-era5.nc"),
                 Path("europe-2012-era5.nc"),
