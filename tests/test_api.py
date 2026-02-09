@@ -148,8 +148,9 @@ def test_generate_endpoint(monkeypatch):
             profile_type="both",
             wind_profiles=1,
             solar_profiles=1,
-            wind_profile_data={"w": {"index": [], "values": []}},
-            solar_profile_data={"s": {"index": [], "values": []}},
+            index=[],
+            wind_profile_data={"w": {"values": []}},
+            solar_profile_data={"s": {"values": []}},
         )
 
     monkeypatch.setattr(generate_router, "generate_profiles", fake_generate_profiles)

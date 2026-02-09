@@ -140,3 +140,28 @@ When `solar_technology_config` is provided, the generator uses it instead of res
     `r_irradiance`, `k_1..k_6`
   - `bofinger`: `threshold`, `area`, `rated_production`, `A`, `B`, `C`, `D`,
     `NOCT`, `Tstd`, `Tamb`, `Intc`, `ta`
+
+### Generate Response Shape
+
+`POST /generate` returns one shared root-level `index` array. Wind and solar
+payloads contain only per-series values keyed by profile name:
+
+```json
+{
+  "status": "ok",
+  "profile_type": "both",
+  "wind_profiles": 1,
+  "solar_profiles": 1,
+  "index": ["2024-01-01T00:00:00"],
+  "wind_profile_data": {
+    "2024_NREL_ReferenceTurbine_2020ATB_4MW": {
+      "values": [0.42]
+    }
+  },
+  "solar_profile_data": {
+    "2024_slope30.0_azimuth180.0": {
+      "values": [0.28]
+    }
+  }
+}
+```

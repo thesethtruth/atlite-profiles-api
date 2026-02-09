@@ -1,4 +1,4 @@
-from service.api.catalog import load_catalog_snapshot
+from service.api.catalog import ApiConfig, load_catalog_snapshot
 
 
 def test_load_catalog_snapshot_discovers_cutouts_from_sources(tmp_path, monkeypatch):
@@ -11,14 +11,10 @@ def test_load_catalog_snapshot_discovers_cutouts_from_sources(tmp_path, monkeypa
     nested_dir.mkdir()
     (nested_dir / "c.nc").write_text("x", encoding="utf-8")
 
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    (config_dir / "api.yaml").write_text(
-        ("cutout_sources:\n  - data\n  - nested/*.nc\n"),
-        encoding="utf-8",
+    monkeypatch.setattr(
+        "service.api.catalog._load_api_config",
+        lambda: ApiConfig(cutout_sources=[str(data_dir), str(nested_dir / "*.nc")]),
     )
-
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "service.api.catalog.get_available_turbines",
         lambda: ["T1"],
@@ -55,7 +51,10 @@ def test_load_catalog_snapshot_discovers_cutouts_from_sources(tmp_path, monkeypa
 
 
 def test_load_catalog_snapshot_handles_missing_api_config(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "service.api.catalog._load_api_config",
+        lambda: ApiConfig(),
+    )
     monkeypatch.setattr(
         "service.api.catalog.get_available_turbines",
         lambda: [],
@@ -84,3 +83,43 @@ def test_load_catalog_snapshot_handles_missing_api_config(tmp_path, monkeypatch)
 
     assert snapshot.available_cutouts == []
     assert snapshot.cutout_entries == []
+
+
+def test_load_catalog_snapshot_resolves_relative_sources_from_project_root(
+    tmp_path, monkeypatch
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "local.nc").write_text("x", encoding="utf-8")
+
+    monkeypatch.setattr("service.api.catalog.PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "service.api.catalog._load_api_config",
+        lambda: ApiConfig(cutout_sources=["data"]),
+    )
+    monkeypatch.setattr("service.api.catalog.get_available_turbines", lambda: [])
+    monkeypatch.setattr(
+        "service.api.catalog.get_available_solar_technologies",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        "service.api.catalog.inspect_cutout_metadata",
+        lambda _path, *, name: {
+            "filename": name,
+            "path": str(data_dir / name),
+            "cutout": {
+                "module": "era5",
+                "x": [0.0, 1.0],
+                "y": [0.0, 1.0],
+                "time": "2024",
+            },
+            "prepare": {"features": []},
+            "inferred": True,
+        },
+    )
+
+    snapshot = load_catalog_snapshot()
+
+    assert snapshot.available_cutouts == ["local.nc"]
+    assert len(snapshot.cutout_entries) == 1
+    assert snapshot.cutout_entries[0].name == "local.nc"

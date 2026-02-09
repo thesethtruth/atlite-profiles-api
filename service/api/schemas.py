@@ -46,15 +46,14 @@ GENERATE_RESPONSE_EXAMPLE = {
     "profile_type": "both",
     "wind_profiles": 1,
     "solar_profiles": 1,
+    "index": ["2024-01-01T00:00:00"],
     "wind_profile_data": {
         "2024_NREL_ReferenceTurbine_2020ATB_4MW": {
-            "index": ["2024-01-01T00:00:00"],
             "values": [0.42],
         }
     },
     "solar_profile_data": {
         "2024_slope30.0_azimuth180.0": {
-            "index": ["2024-01-01T00:00:00"],
             "values": [0.28],
         }
     },

@@ -361,6 +361,7 @@ def test_generate_profiles_include_profiles_serializes_series(monkeypatch):
     )
 
     assert isinstance(result, GenerateProfilesDataResponse)
+    assert result.index == ["2024-01-01T00:00:00", "2024-01-01T01:00:00"]
     assert result.wind_profile_data is not None
     assert result.solar_profile_data is not None
     assert result.wind_profile_data["2024_model"].values == [0.1, 0.2]

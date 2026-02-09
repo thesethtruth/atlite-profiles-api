@@ -419,20 +419,33 @@ def fetch_cutouts(
 
 def _serialize_profiles(
     profiles: dict[str, pd.Series],
-) -> dict[str, ProfileSeriesPayload]:
+) -> tuple[list[str], dict[str, ProfileSeriesPayload]]:
+    if not profiles:
+        return [], {}
+
+    shared_index: list[str] | None = None
     serialized: dict[str, ProfileSeriesPayload] = {}
     for profile_key, profile in profiles.items():
-        index_values: list[str] = []
+        profile_index: list[str] = []
         for index in profile.index:
             if hasattr(index, "isoformat"):
-                index_values.append(index.isoformat())
+                profile_index.append(index.isoformat())
             else:
-                index_values.append(str(index))
+                profile_index.append(str(index))
+
+        if shared_index is None:
+            shared_index = profile_index
+        elif profile_index != shared_index:
+            raise ValueError(
+                "All generated profiles must share the same time index "
+                "for API response serialization."
+            )
+
         serialized[profile_key] = ProfileSeriesPayload(
-            index=index_values,
             values=[float(value) for value in profile.to_list()],
         )
-    return serialized
+
+    return shared_index or [], serialized
 
 
 def _build_generate_request(
@@ -537,17 +550,37 @@ def generate_profiles(
         solar_technology_config=solar_technology_config,
     )
     wind_profiles, solar_profiles = _compute_profiles(request)
+    index: list[str] | None = None
+    wind_profile_data: dict[str, ProfileSeriesPayload] | None = None
+    solar_profile_data: dict[str, ProfileSeriesPayload] | None = None
+    if include_profiles:
+        wind_index, wind_profile_data = _serialize_profiles(wind_profiles)
+        solar_index, solar_profile_data = _serialize_profiles(solar_profiles)
+        candidate_indices: list[list[str]] = []
+        if wind_profile_data:
+            candidate_indices.append(wind_index)
+        if solar_profile_data:
+            candidate_indices.append(solar_index)
+
+        if candidate_indices:
+            index = candidate_indices[0]
+            for candidate in candidate_indices[1:]:
+                if candidate != index:
+                    raise ValueError(
+                        "Wind and solar profiles must share the same time index "
+                        "for API response serialization."
+                    )
+        else:
+            index = []
+
     return GenerateProfilesDataResponse(
         status="ok",
         profile_type=request.profile_type,
         wind_profiles=len(wind_profiles),
         solar_profiles=len(solar_profiles),
-        wind_profile_data=(
-            _serialize_profiles(wind_profiles) if include_profiles else None
-        ),
-        solar_profile_data=(
-            _serialize_profiles(solar_profiles) if include_profiles else None
-        ),
+        index=index,
+        wind_profile_data=wind_profile_data,
+        solar_profile_data=solar_profile_data,
     )
 
 

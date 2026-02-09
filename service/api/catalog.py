@@ -11,6 +11,8 @@ from core.catalog import get_available_solar_technologies, get_available_turbine
 from core.models import CutoutCatalogEntry, CutoutInspectResponse
 from service.api.cutout_metadata import inspect_cutout_metadata
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class CatalogSnapshot(BaseModel):
     available_turbines: list[str] = Field(default_factory=list)
@@ -24,20 +26,31 @@ class ApiConfig(BaseModel):
     cutout_sources: list[str] = Field(default_factory=list)
 
 
-def _load_api_config(config_file: Path = Path("config/api.yaml")) -> ApiConfig:
+def _load_api_config(config_file: Path | None = None) -> ApiConfig:
+    if config_file is None:
+        config_file = PROJECT_ROOT / "config/api.yaml"
     if not config_file.exists():
         return ApiConfig()
     payload = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     return ApiConfig.model_validate(payload or {})
 
 
-def _discover_cutouts(sources: list[str]) -> tuple[list[str], list[CutoutCatalogEntry]]:
+def _discover_cutouts(
+    sources: list[str], *, base_dir: Path | None = None
+) -> tuple[list[str], list[CutoutCatalogEntry]]:
+    if base_dir is None:
+        base_dir = PROJECT_ROOT
     discovered: dict[str, Path] = {}
     for source in sources:
         if any(token in source for token in "*?[]"):
-            matches = [Path(path) for path in glob(source, recursive=True)]
+            source_glob = source
+            if not Path(source).is_absolute():
+                source_glob = str((base_dir / source).as_posix())
+            matches = [Path(path) for path in glob(source_glob, recursive=True)]
         else:
             source_path = Path(source)
+            if not source_path.is_absolute():
+                source_path = base_dir / source_path
             if source_path.is_dir():
                 matches = list(source_path.glob("*.nc"))
             elif source_path.suffix == ".nc" and source_path.exists():

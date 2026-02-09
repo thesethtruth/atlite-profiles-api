@@ -237,7 +237,6 @@ class GenerateProfilesRequest(BaseModel):
 
 
 class ProfileSeriesPayload(BaseModel):
-    index: list[str]
     values: list[float]
 
 
@@ -246,6 +245,7 @@ class GenerateProfilesDataResponse(BaseModel):
     profile_type: ProfileType
     wind_profiles: int = Field(ge=0)
     solar_profiles: int = Field(ge=0)
+    index: list[str] | None = None
     wind_profile_data: dict[str, ProfileSeriesPayload] | None = None
     solar_profile_data: dict[str, ProfileSeriesPayload] | None = None
 
