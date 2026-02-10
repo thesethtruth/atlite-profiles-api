@@ -681,7 +681,7 @@ def fetch_cutouts_command(
         ),
     ] = False,
 ) -> None:
-    if config_file is None and not all:
+    if config_file is None and not all and name is None:
         raise typer.BadParameter(
             "Provide --config-file or use --all.",
             param_hint="config-file",

@@ -180,6 +180,41 @@ def test_fetch_cutouts_command_with_all_uses_default(monkeypatch):
     assert "Done: fetched=0, skipped=2" in result.stdout
 
 
+def test_fetch_cutouts_command_with_name_uses_default_config(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_fetch_cutouts(
+        *,
+        config_file: Path,
+        force_refresh: bool,
+        name: str | None,
+        report_validate_existing: bool,
+    ):
+        captured["config_file"] = config_file
+        captured["force_refresh"] = force_refresh
+        captured["name"] = name
+        captured["report_validate_existing"] = report_validate_existing
+        return CutoutFetchResponse(
+            status="ok",
+            fetched=[],
+            skipped=[],
+            fetched_count=0,
+            skipped_count=1,
+            validation_report=None,
+        )
+
+    monkeypatch.setattr(cli, "fetch_cutouts", fake_fetch_cutouts)
+
+    result = runner.invoke(cli.app, ["fetch-cutouts", "--name", "europe-1987"])
+
+    assert result.exit_code == 0
+    assert captured["config_file"] == Path("config/cutouts.yaml")
+    assert captured["force_refresh"] is False
+    assert captured["name"] == "europe-1987"
+    assert captured["report_validate_existing"] is False
+    assert "Done: fetched=0, skipped=1" in result.stdout
+
+
 def test_fetch_cutouts_command_name_and_validation_report(monkeypatch, tmp_path):
     config_file = tmp_path / "cutouts.yaml"
     config_file.write_text("cutouts: []\n", encoding="utf-8")
