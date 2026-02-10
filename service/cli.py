@@ -24,14 +24,6 @@ from core.technology import (
     turbine_metrics_from_file as _turbine_metrics_numeric,
 )
 from service.logging_utils import configure_logging
-from service.runner import (
-    fetch_cutouts,
-    generate_profiles_to_storage,
-    get_solar_catalog,
-    get_turbine_catalog,
-    inspect_solar_technology,
-    inspect_turbine,
-)
 
 configure_logging()
 
@@ -43,6 +35,42 @@ class SortBy(str, Enum):
     name = "name"
     hub_height = "hub_height"
     power = "power"
+
+
+def generate_profiles_to_storage(*args, **kwargs):
+    from service.runner import generate_profiles_to_storage as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def get_turbine_catalog(*args, **kwargs):
+    from service.runner import get_turbine_catalog as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def get_solar_catalog(*args, **kwargs):
+    from service.runner import get_solar_catalog as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def inspect_turbine(*args, **kwargs):
+    from service.runner import inspect_turbine as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def inspect_solar_technology(*args, **kwargs):
+    from service.runner import inspect_solar_technology as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def fetch_cutouts(*args, **kwargs):
+    from service.runner import fetch_cutouts as _impl
+
+    return _impl(*args, **kwargs)
 
 
 def _format_number(value: float | None, *, digits: int = 3) -> str:
