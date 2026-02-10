@@ -11,3 +11,68 @@ cutouts:
         time: 12
     prepare:
       features: [height, wind, influx, temperature]
+
+  - name: europe-1987
+    filename: europe-1987-era5.nc
+    target: data
+    cutout:
+      module: era5
+      x: [-12.0, 42.0]
+      y: [33.0, 72.0]
+      time: "1987"
+      chunks:
+        time: 600
+    prepare:
+      features: [height, wind, influx, temperature]
+
+  - name: europe-1997
+    filename: europe-1997-era5.nc
+    target: data
+    cutout:
+      module: era5
+      x: [-12.0, 42.0]
+      y: [33.0, 72.0]
+      time: "1997"
+      chunks:
+        time: 600
+    prepare:
+      features: [height, wind, influx, temperature]
+
+  - name: europe-2012
+    filename: europe-2012-era5.nc
+    target: data
+    cutout:
+      module: era5
+      x: [-12.0, 42.0]
+      y: [33.0, 72.0]
+      time: "2012"
+      chunks:
+        time: 600
+    prepare:
+      features: [height, wind, influx, temperature]
+
+  - name: europe-2004
+    filename: europe-2004-era5.nc
+    target: data
+    cutout:
+      module: era5
+      x: [-12.0, 42.0]
+      y: [33.0, 72.0]
+      time: "2004"
+      chunks:
+        time: 600
+    prepare:
+      features: [height, wind, influx, temperature]
+
+  - name: europe-2023
+    filename: europe-2023-era5.nc
+    target: data
+    cutout:
+      module: era5
+      x: [-12.0, 42.0]
+      y: [33.0, 72.0]
+      time: "2023"
+      chunks:
+        time: 600
+    prepare:
+      features: [height, wind, influx, temperature]
